@@ -32,6 +32,7 @@
 #include "scopedcomptr.h"
 
 #include <cmath>
+#include <cstdio>
 
 extern HRESULT FindCaptureDevice(IBaseFilter** ppSrcFilter, const wchar_t* wDeviceName);
 extern void _FreeMediaType(AM_MEDIA_TYPE& mt);
@@ -456,14 +457,31 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     }
     #endif
 
-    hr = m_capture->RenderStream(&PIN_CATEGORY_PREVIEW, &MEDIATYPE_Video, m_sourceFilter, m_sampleGrabberFilter, m_nullRenderer);
+    // Use CAPTURE pin instead of PREVIEW so that IAMStreamConfig::SetFormat
+    // triggers reconnection when called on a connected pin.
+    // The original code used PREVIEW because CAPTURE gave 2.5fps on a
+    // LifeCam 3000 — but our USB cameras need a connected CAPTURE pin
+    // so that post-Run format re-apply (the MJPG fix) can force DirectShow
+    // to renegotiate the media type.
+    // This matches OpenCV's cap_dshow.cpp architecture.
+    hr = m_capture->RenderStream(&PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, m_sourceFilter, m_sampleGrabberFilter, m_nullRenderer);
     if (hr < 0)
     {
         LOG(LOG_ERR,"Error calling RenderStream (HRESULT=%08X)\n", hr);
         return false;
     }
 
-    // look up the media type:
+    // =================================================================
+    // STEP 4: Read back what DirectShow actually negotiated.
+    //
+    // RenderStream connected the camera's output pin to the
+    // SampleGrabber's input pin.  During that connection, DirectShow
+    // picked a media type that both sides accept.
+    //
+    // We read the SampleGrabber's INPUT type — this is what the camera
+    // will deliver.  The important field is AvgTimePerFrame:
+    //   333333 = 30 fps    500000 = 20 fps    1000000 = 10 fps
+    // =================================================================
     AM_MEDIA_TYPE* info = new AM_MEDIA_TYPE();
     hr = m_sampleGrabber->GetConnectedMediaType(info);
     if ( hr == S_OK )
@@ -473,21 +491,185 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
             const VIDEOINFOHEADER * vi = reinterpret_cast<VIDEOINFOHEADER*>( info->pbFormat );
             m_width  = vi->bmiHeader.biWidth;
             m_height = vi->bmiHeader.biHeight;
-            memcpy(&m_videoInfo, vi, sizeof(VIDEOINFOHEADER)); // save video header information
-            LOG(LOG_INFO, "Width = %d, Height = %d\n", m_width, m_height);
+            memcpy(&m_videoInfo, vi, sizeof(VIDEOINFOHEADER));
+            uint32_t fc = vi->bmiHeader.biCompression;
+            uint32_t fps_from_mt = vi->AvgTimePerFrame > 0
+                ? 10000000 / vi->AvgTimePerFrame
+                : 0;
+            LOG(LOG_ERR,
+                "  [negotiated media type]\n"
+                "    resolution      : %d x %d\n"
+                "    pixel format    : %s (0x%08X)\n"
+                "    target framerate: %d fps (AvgTimePerFrame=%d)\n"
+                "    bitrate         : %d\n",
+                m_width, m_height,
+                fourCCToString(fc).c_str(), fc,
+                fps_from_mt, vi->AvgTimePerFrame,
+                vi->dwBitRate);
 
-            //FIXME: for now, just set the frame buffer size to
-            //       width*height*3 for 24 RGB raw images
-            m_frameBuffer.resize(m_width*m_height*3);                  
+            m_frameBuffer.resize(m_width*m_height*3);
         }
-        CoTaskMemFree( info->pbFormat );        
+        CoTaskMemFree( info->pbFormat );
     }
-    free(info);	
+    else
+    {
+        LOG(LOG_ERR,
+            "  [negotiated media type]  FAILED to read (hr=0x%08X)\n", hr);
+    }
+    free(info);
+
+    // --- double-check media type before starting the graph ---
+    {
+        AM_MEDIA_TYPE* infoPre = new AM_MEDIA_TYPE();
+        hr = m_sampleGrabber->GetConnectedMediaType(infoPre);
+        if (hr == S_OK && infoPre->formattype == FORMAT_VideoInfo)
+        {
+            const VIDEOINFOHEADER *viPre = reinterpret_cast<VIDEOINFOHEADER*>(infoPre->pbFormat);
+            uint32_t fpsPre = viPre->AvgTimePerFrame > 0
+                ? 10000000 / viPre->AvgTimePerFrame
+                : 0;
+            LOG(LOG_ERR,
+                "  [pre-Run check]     %dx%d  %dfps  (re-read confirms negotiation)\n",
+                viPre->bmiHeader.biWidth, viPre->bmiHeader.biHeight, fpsPre);
+            CoTaskMemFree(infoPre->pbFormat);
+        }
+        delete infoPre;
+    }
 
     LOG(LOG_INFO,"Stream to device %s opened\n", device->m_name.c_str());
 
-    //FIXME: add error handling
+    // =================================================================
+    // STEP 5: Start the filter graph.
+    //
+    // m_control->Run() transitions every filter in the graph from
+    // Stopped → Paused → Running.  At this boundary the camera driver
+    // may renegotiate the output format AGAIN (this is the source of
+    // the "MJPG doesn't stick" bug).  Our fix below re-applies the
+    // format AFTER this transition, matching what the C++ PoC does.
+    // =================================================================
+    LOG(LOG_ERR,
+        "  [graph start] calling m_control->Run() — camera begins streaming\n");
     m_control->Run();
+    LOG(LOG_ERR,
+        "  [graph start] m_control->Run() completed\n");
+
+    // =================================================================
+    // STEP 6: MJPG FIX — re-apply format while graph is RUNNING.
+    //
+    // This is the equivalent of:
+    //   cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+    // called AFTER the first cap.read() in the Python backend.
+    //
+    // Why this works: calling SetFormat on a CONNECTED capture pin
+    // forces DirectShow to tear down and rebuild the pin connection,
+    // negotiating the media type from scratch.  The camera hardware,
+    // now running, accepts MJPG with correct timing.
+    //
+    // Part A: re-set FOURCC on the CAPTURE pin via IAMStreamConfig.
+    // Part B: force-reconnect the pin via IFilterGraph2::Reconnect().
+    // =================================================================
+    LOG(LOG_ERR,
+        "  [MJPG fix] re-applying format while graph is running\n");
+    {
+        // --- Part A: find matching format and call SetFormat ---
+        IAMStreamConfig *pConfig2 = NULL;
+        hr = m_capture->FindInterface(&PIN_CATEGORY_CAPTURE, 0,
+            m_sourceFilter, IID_IAMStreamConfig, (void**)&pConfig2);
+        LOG(LOG_ERR,
+            "  [MJPG fix A] looking for CAPTURE pin with IAMStreamConfig... found (ptr=%p)\n",
+            (void*)pConfig2);
+        if (SUCCEEDED(hr))
+        {
+            int iCount2 = 0, iSize2 = 0;
+            pConfig2->GetNumberOfCapabilities(&iCount2, &iSize2);
+            LOG(LOG_ERR,
+                "  [MJPG fix A] camera reports %d format capabilities\n", iCount2);
+            for (int iFmt = 0; iFmt < iCount2; iFmt++)
+            {
+                VIDEO_STREAM_CONFIG_CAPS scc;
+                AM_MEDIA_TYPE *pMt;
+                if (SUCCEEDED(pConfig2->GetStreamCaps(iFmt, &pMt, (BYTE*)&scc)))
+                {
+                    if (pMt->majortype == MEDIATYPE_Video &&
+                        pMt->formattype == FORMAT_VideoInfo &&
+                        pMt->cbFormat >= sizeof(VIDEOINFOHEADER) &&
+                        pMt->pbFormat != NULL)
+                    {
+                        VIDEOINFOHEADER *pVih = (VIDEOINFOHEADER*)pMt->pbFormat;
+                        uint32_t fc = pVih->bmiHeader.biCompression;
+                        if (fc == BI_RGB) fc = 'RGB ';
+                        if (pVih->bmiHeader.biWidth == width &&
+                            pVih->bmiHeader.biHeight == height && fc == fourCC)
+                        {
+                            hr = pConfig2->SetFormat(pMt);
+                            LOG(LOG_ERR,
+                                "  [MJPG fix A] SetFormat(%dx%d %s) -> hr=0x%08X %s\n",
+                                width, height, fourCCToString(fourCC).c_str(),
+                                hr, SUCCEEDED(hr) ? "(OK)" : "(VFW_E_INVALIDMEDIATYPE — pin needs reconnect)");
+                            _DeleteMediaType(pMt);
+                            break;
+                        }
+                    }
+                    _DeleteMediaType(pMt);
+                }
+            }
+            pConfig2->Release();
+        }
+
+        // --- Part B: force-reconnect the connected output pin ---
+        IEnumPins *enumPins = NULL;
+        if (SUCCEEDED(m_sourceFilter->EnumPins(&enumPins)))
+        {
+            IPin *pin;
+            while (enumPins->Next(1, &pin, NULL) == S_OK)
+            {
+                PIN_DIRECTION dir;
+                IPin *connectedTo = NULL;
+                if (SUCCEEDED(pin->QueryDirection(&dir)) &&
+                    dir == PINDIR_OUTPUT &&
+                    SUCCEEDED(pin->ConnectedTo(&connectedTo)) &&
+                    connectedTo != NULL)
+                {
+                    LOG(LOG_ERR,
+                        "  [MJPG fix B] found connected output pin, forcing reconnect...\n");
+                    hr = m_graph->Reconnect(pin);
+                    LOG(LOG_ERR,
+                        "  [MJPG fix B] Reconnect() -> hr=0x%08X %s\n",
+                        hr, SUCCEEDED(hr) ? "(OK — media type renegotiated)"
+                                          : "(VFW_E_INVALIDMEDIATYPE — no compatible format found)");
+                    connectedTo->Release();
+                    pin->Release();
+                    break;
+                }
+                if (connectedTo) connectedTo->Release();
+                pin->Release();
+            }
+            enumPins->Release();
+        }
+        else
+        {
+            LOG(LOG_ERR,
+                "  [MJPG fix B] EnumPins failed — cannot reconnect\n");
+        }
+    }
+
+    // --- Final check: what did we end up with? ---
+    {
+        AM_MEDIA_TYPE* infoPost = new AM_MEDIA_TYPE();
+        hr = m_sampleGrabber->GetConnectedMediaType(infoPost);
+        if (hr == S_OK && infoPost->formattype == FORMAT_VideoInfo)
+        {
+            const VIDEOINFOHEADER *viPost = reinterpret_cast<VIDEOINFOHEADER*>(infoPost->pbFormat);
+            uint32_t fpsPost = viPost->AvgTimePerFrame > 0
+                ? 10000000 / viPost->AvgTimePerFrame
+                : 0;
+            LOG(LOG_ERR,
+                "  [final state] %dx%d @ %dfps  — ready for capture\n",
+                viPost->bmiHeader.biWidth, viPost->bmiHeader.biHeight, fpsPost);
+            CoTaskMemFree(infoPost->pbFormat);
+        }
+        delete infoPost;
+    }
 
 	hr = m_sampleGrabberFilter->Run(0);
 

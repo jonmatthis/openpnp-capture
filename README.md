@@ -1,4 +1,4 @@
-![OpenPNP Logo](https://raw.githubusercontent.com/openpnp/openpnp-logo/develop/logo_small.png)
+    ![OpenPNP Logo](https://raw.githubusercontent.com/openpnp/openpnp-logo/develop/logo_small.png)
 
 # openpnp-capture
 OpenPnP Capture is a cross platform video capture library for C with a focus on machine vision. Its goals are:
