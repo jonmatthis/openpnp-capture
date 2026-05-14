@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags: ["build.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x86_64
+            os: windows-latest
+            cmake-generator: "Visual Studio 17 2022"
+            cmake-arch: x64
+            archive-ext: zip
+
+          - target: windows-arm64
+            os: windows-latest
+            cmake-generator: "Visual Studio 17 2022"
+            cmake-arch: ARM64
+            archive-ext: zip
+
+          - target: macos-x86_64
+            os: macos-13
+            cmake-generator: "Unix Makefiles"
+            cmake-arch: ""
+            archive-ext: tar.gz
+
+          - target: macos-arm64
+            os: macos-latest
+            cmake-generator: "Unix Makefiles"
+            cmake-arch: ""
+            archive-ext: tar.gz
+
+          - target: linux-x86_64
+            os: ubuntu-latest
+            cmake-generator: "Unix Makefiles"
+            cmake-arch: ""
+            archive-ext: tar.gz
+
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+            cmake-generator: "Unix Makefiles"
+            cmake-arch: ""
+            archive-ext: tar.gz
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y nasm libgtk-3-dev
+
+      - name: Install MSVC ARM64 toolchain
+        if: matrix.cmake-arch == 'ARM64'
+        shell: powershell
+        run: |
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe" modify `
+            --installPath "$vsPath" `
+            --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 `
+            --quiet --norestart
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.cmake-arch }}" ]; then
+            cmake -B build \
+              -G "${{ matrix.cmake-generator }}" \
+              -A "${{ matrix.cmake-arch }}" \
+              -DBUILD_STATIC_LIBS=ON \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DCMAKE_BUILD_TYPE=Release
+          else
+            cmake -B build \
+              -G "${{ matrix.cmake-generator }}" \
+              -DBUILD_STATIC_LIBS=ON \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DCMAKE_BUILD_TYPE=Release
+          fi
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release --parallel
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p artifact/lib artifact/include
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp build/Release/openpnp-capture.lib artifact/lib/
+            cp build/libjpeg-turbo/install/lib/turbojpeg-static.lib artifact/lib/
+          else
+            cp build/libopenpnp-capture.a artifact/lib/
+            cp build/libjpeg-turbo/install/lib/libturbojpeg.a artifact/lib/
+          fi
+
+          cp include/openpnp-capture.h artifact/include/
+
+      - name: Create archive
+        shell: bash
+        run: |
+          ARCHIVE_NAME="openpnp-capture-${{ matrix.target }}.${{ matrix.archive-ext }}"
+          if [ "${{ matrix.archive-ext }}" = "zip" ]; then
+            cd artifact && zip -r "../${ARCHIVE_NAME}" .
+          else
+            cd artifact && tar -czf "../${ARCHIVE_NAME}" .
+          fi
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          files: openpnp-capture-${{ matrix.target }}.${{ matrix.archive-ext }}
+          token: ${{ secrets.GITHUB_TOKEN }}

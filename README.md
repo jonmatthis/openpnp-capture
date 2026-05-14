@@ -170,6 +170,166 @@ Run 'bootstrap_linux.sh'. Run make.
 # Releases
 Releases are built automatically for new tags on all supported platforms using [Github Actions](https://github.com/openpnp/openpnp-capture/blob/master/.github/workflows/build.yml). See https://github.com/openpnp/openpnp-capture/releases/latest to download the latest.
 
+# Pre-built static libraries
+
+This fork produces static library archives for linking into Rust (via `build.rs`)
+or other languages that consume C static libraries. Archives are built automatically
+when a `build.*` tag is pushed and attached to the corresponding
+[GitHub Release](https://github.com/jonmatthis/openpnp-capture/releases).
+
+### Repo setup
+
+The release workflow needs write access to create releases. GitHub now defaults
+new repos to read-only. To enable it:
+
+1. Go to **Settings → Actions → General**
+2. Under **Workflow Permissions**, select **"Read and write permissions"**
+3. Save
+
+Without this, the `permissions: contents: write` declared in the workflow file
+cannot take effect, and the release upload step will fail with a 403.
+
+## Download URL pattern
+
+```
+https://github.com/jonmatthis/openpnp-capture/releases/download/build.N/openpnp-capture-<target>.<ext>
+```
+
+where `build.N` is a build number tag (e.g. `build.0`, `build.1`, etc.).
+
+| Target | Extension |
+|--------|-----------|
+| `windows-x86_64` | `.zip` |
+| `windows-arm64` | `.zip` |
+| `macos-x86_64` | `.tar.gz` |
+| `macos-arm64` | `.tar.gz` |
+| `linux-x86_64` | `.tar.gz` |
+| `linux-arm64` | `.tar.gz` |
+
+## Archive contents
+
+Every archive contains the same internal structure:
+
+```
+lib/
+  openpnp-capture.lib    (.a on macOS/Linux)
+  turbojpeg-static.lib   (.a on macOS/Linux)
+include/
+  openpnp-capture.h
+```
+
+## Consuming from a Rust build.rs
+
+Add these build dependencies to `Cargo.toml`:
+
+```toml
+[build-dependencies]
+ureq = "2"                # or your preferred HTTP client
+```
+
+For zip/tar.gz extraction, use `std::process::Command` to shell out to
+`tar` (Unix) or `powershell Expand-Archive` (Windows) — no extra crate needed.
+
+In `build.rs`:
+
+```rust
+use std::env;
+use std::path::PathBuf;
+use std::process::Command;
+
+const OPENPNP_BUILD: &str = "build.0"; // bump when C code changes
+
+fn main() {
+    let target = env::var("TARGET").unwrap();
+    let (platform, ext) = if target.contains("windows") {
+        let arch = if target.contains("aarch64") { "arm64" } else { "x86_64" };
+        (format!("windows-{}", arch), "zip")
+    } else if target.contains("apple") {
+        let arch = if target.contains("aarch64") { "arm64" } else { "x86_64" };
+        (format!("macos-{}", arch), "tar.gz")
+    } else if target.contains("linux") {
+        let arch = if target.contains("aarch64") { "arm64" } else { "x86_64" };
+        (format!("linux-{}", arch), "tar.gz")
+    } else {
+        panic!("unsupported target: {}", target);
+    };
+
+    let url = format!(
+        "https://github.com/jonmatthis/openpnp-capture/releases/download/{}/openpnp-capture-{}.{}",
+        OPENPNP_BUILD, platform, ext
+    );
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let extract_dir = out_dir.join("openpnp-capture");
+
+    // Download and extract (skip if already cached)
+    if !extract_dir.exists() {
+        let archive = out_dir.join(format!("openpnp-capture.{}", ext));
+
+        let body = ureq::get(&url)
+            .call()
+            .expect("failed to download openpnp-capture")
+            .into_body();
+        let mut file = std::fs::File::create(&archive).unwrap();
+        std::io::copy(&mut body.into_reader(), &mut file).unwrap();
+
+        if ext == "zip" {
+            Command::new("powershell")
+                .args(["Expand-Archive", "-Path", &archive.to_str().unwrap(),
+                       "-DestinationPath", &extract_dir.to_str().unwrap()])
+                .status().unwrap();
+        } else {
+            Command::new("tar")
+                .args(["-xzf", &archive.to_str().unwrap(), "-C", &extract_dir.to_str().unwrap()])
+                .status().unwrap();
+        }
+    }
+
+    println!("cargo:rustc-link-search=native={}", extract_dir.join("lib").display());
+    println!("cargo:rustc-link-lib=static=openpnp-capture");
+    println!("cargo:rustc-link-lib=static=turbojpeg-static");
+
+    // Platform-specific system libraries
+    if target.contains("windows") {
+        println!("cargo:rustc-link-lib=strmiids");
+    }
+    if target.contains("apple") {
+        println!("cargo:rustc-link-lib=framework=AVFoundation");
+        println!("cargo:rustc-link-lib=framework=Foundation");
+        println!("cargo:rustc-link-lib=framework=CoreMedia");
+        println!("cargo:rustc-link-lib=framework=CoreVideo");
+        println!("cargo:rustc-link-lib=framework=Accelerate");
+        println!("cargo:rustc-link-lib=framework=IOKit");
+    }
+}
+```
+
+## Bumping the build number
+
+When the C source in this repository changes, push a new tag.
+
+### Option 1 — git alias (recommended)
+
+Add a `bump` alias to your local git config:
+
+```bash
+git config alias.bump '!git tag build.$(git tag -l "build.*" | sed "s/build\.//" | sort -n | tail -1 | awk "{print \$0+1}") && git push origin build.$(git tag -l "build.*" | sed "s/build\.//" | sort -n | tail -1 | awk "{print \$0+1}")'
+```
+
+Then just run `git bump` — it finds the highest `build.N`, creates `build.N+1`, and pushes it. No thought required.
+
+### Option 2 — manual
+
+Check the last build tag, then push the next one:
+
+```
+git tag -l "build.*" | sort -V | tail -1   # → build.0
+git tag build.1 && git push origin build.1
+```
+
+After either method, update the `OPENPNP_BUILD` constant in your downstream
+`build.rs` to match the new tag.
+
 # Platform Notes
 
 ## MacOS
