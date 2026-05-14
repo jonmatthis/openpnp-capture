@@ -25,6 +25,11 @@ set (JPEG_DECODE_BENCH_SOURCE jpeg_decode_bench.cpp)
 
 add_executable(openpnp-capture-jpeg-decode-bench ${JPEG_DECODE_BENCH_SOURCE})
 
+set (DIAGNOSTIC_SOURCE diagnostic_settings.cpp ../../common/logging.cpp)
+
+add_executable(diagnostic_settings ${DIAGNOSTIC_SOURCE})
+
 target_link_libraries(openpnp-capture-test openpnp-capture)
 target_link_libraries(openpnp-capture-raw-test openpnp-capture)
 target_link_libraries(openpnp-capture-jpeg-decode-bench openpnp-capture)
+target_link_libraries(diagnostic_settings openpnp-capture)

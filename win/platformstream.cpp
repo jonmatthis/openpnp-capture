@@ -688,12 +688,32 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
             uint32_t fpsPost = viPost->AvgTimePerFrame > 0
                 ? 10000000 / viPost->AvgTimePerFrame
                 : 0;
+            m_width = viPost->bmiHeader.biWidth;
+            m_height = viPost->bmiHeader.biHeight;
             LOG(LOG_ERR,
                 "  [final state] %dx%d @ %dfps  — ready for capture\n",
-                viPost->bmiHeader.biWidth, viPost->bmiHeader.biHeight, fpsPost);
+                m_width, m_height, fpsPost);
             CoTaskMemFree(infoPost->pbFormat);
         }
         delete infoPost;
+    }
+
+    // ── HARD FAIL on resolution mismatch ──────────────────────────────
+    //
+    // After RenderStream + MJPG fix, the camera driver may have silently
+    // negotiated a different resolution than requested. This is a fatal
+    // integrity error — downstream code depends on the resolution being
+    // exactly what was configured. We must refuse to open the stream
+    // rather than deliver unexpectedly-sized frames.
+    // ──────────────────────────────────────────────────────────────────
+    if (m_width != width || m_height != height) {
+        LOG(LOG_ERR,
+            "  [FATAL] Resolution mismatch: requested %dx%d but DirectShow negotiated %dx%d\n"
+            "  The camera driver silently overrode the requested format and the\n"
+            "  MJPG-fix re-negotiation also failed. The stream will NOT open.\n",
+            width, height, m_width, m_height);
+        close();
+        return false;
     }
 
 	hr = m_sampleGrabberFilter->Run(0);

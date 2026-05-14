@@ -133,6 +133,14 @@ public:
     /** returns the number of frames captured during the lifetime of the stream */
     uint32_t getStreamFrameCount(int32_t streamID);
 
+    /** Get the actual negotiated resolution of an open stream.
+        @param streamID the ID of the stream.
+        @param outWidth pointer to receive the width in pixels.
+        @param outHeight pointer to receive the height in pixels.
+        @return true if the stream exists and is open.
+    */
+    bool getStreamResolution(int32_t streamID, uint32_t *outWidth, uint32_t *outHeight);
+
     /** set the frame rate of a stream 
         returns false if the camera does not support the frame rate
     */

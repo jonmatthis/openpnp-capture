@@ -355,6 +355,22 @@ uint32_t Context::getStreamFrameCount(int32_t streamID)
     return stream->getFrameCount();
 }
 
+bool Context::getStreamResolution(int32_t streamID, uint32_t *outWidth, uint32_t *outHeight)
+{
+    if (streamID < 0) {
+        LOG(LOG_ERR, "getStreamResolution: negative stream ID\n");
+        return false;
+    }
+    Stream *stream = m_streams[streamID];
+    if (stream == nullptr) {
+        LOG(LOG_ERR, "getStreamResolution: unknown stream ID\n");
+        return false;
+    }
+    if (outWidth != nullptr) *outWidth = stream->getWidth();
+    if (outHeight != nullptr) *outHeight = stream->getHeight();
+    return true;
+}
+
 bool Context::setStreamFrameRate(int32_t streamID, uint32_t fps)
 {
     if (streamID < 0)

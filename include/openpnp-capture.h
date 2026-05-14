@@ -275,6 +275,23 @@ DLLPUBLIC CapResult Cap_getFrameSize(CapContext ctx, CapStream stream, uint32_t 
 DLLPUBLIC CapResult Cap_decodeFrame(CapContext ctx, CapStream stream,
     void *RGBbufferPtr, uint32_t RGBbufferBytes);
 
+/** Get the actual negotiated resolution of an open stream.
+
+    This returns the resolution that DirectShow actually negotiated,
+    which may differ from the requested format if the camera driver
+    overrides the format during pin connection. ALWAYS call this
+    after opening a stream to verify the resolution matches what
+    was requested.
+
+    @param ctx The ID of the context.
+    @param stream The stream ID.
+    @param outWidth Receives the actual width in pixels.
+    @param outHeight Receives the actual height in pixels.
+    @return CAPRESULT_OK on success, CAPRESULT_ERR if stream invalid or not open.
+*/
+DLLPUBLIC CapResult Cap_getStreamResolution(CapContext ctx, CapStream stream,
+    uint32_t *outWidth, uint32_t *outHeight);
+
 
 /**********************************************************************************
      NEW CAMERA CONTROL API FUNCTIONS

@@ -215,6 +215,18 @@ DLLPUBLIC CapResult Cap_decodeFrame(CapContext ctx, CapStream stream,
     return CAPRESULT_ERR;
 }
 
+DLLPUBLIC CapResult Cap_getStreamResolution(CapContext ctx, CapStream stream,
+    uint32_t *outWidth, uint32_t *outHeight)
+{
+    if (ctx != 0 && outWidth != nullptr && outHeight != nullptr)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        return c->getStreamResolution(stream, outWidth, outHeight)
+            ? CAPRESULT_OK : CAPRESULT_ERR;
+    }
+    return CAPRESULT_ERR;
+}
+
 #if 0
 
 // not used for now..

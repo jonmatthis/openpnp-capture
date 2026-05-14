@@ -105,8 +105,14 @@ public:
     /** Return the FOURCC media type of the stream */
     virtual uint32_t getFOURCC() = 0;
 
+    /** Return the actual negotiated width of the stream in pixels */
+    uint32_t getWidth() const { return m_width; }
+
+    /** Return the actual negotiated height of the stream in pixels */
+    uint32_t getHeight() const { return m_height; }
+
     /** Return the number of frames captured.
-        FIXME: protect by mutex 
+        FIXME: protect by mutex
     */
     uint32_t getFrameCount() const
     {
