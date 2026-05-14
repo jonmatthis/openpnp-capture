@@ -19,36 +19,42 @@ jobs:
             os: windows-latest
             cmake-generator: "Visual Studio 17 2022"
             cmake-arch: x64
+            cmake-extra-args: ""
             archive-ext: zip
 
           - target: windows-arm64
             os: windows-latest
             cmake-generator: "Visual Studio 17 2022"
             cmake-arch: ARM64
+            cmake-extra-args: "-DWITH_SIMD_LIBJPEG=OFF"
             archive-ext: zip
 
           - target: macos-x86_64
             os: macos-13
             cmake-generator: "Unix Makefiles"
             cmake-arch: ""
+            cmake-extra-args: ""
             archive-ext: tar.gz
 
           - target: macos-arm64
             os: macos-latest
             cmake-generator: "Unix Makefiles"
             cmake-arch: ""
+            cmake-extra-args: ""
             archive-ext: tar.gz
 
           - target: linux-x86_64
             os: ubuntu-latest
             cmake-generator: "Unix Makefiles"
             cmake-arch: ""
+            cmake-extra-args: ""
             archive-ext: tar.gz
 
           - target: linux-arm64
             os: ubuntu-24.04-arm
             cmake-generator: "Unix Makefiles"
             cmake-arch: ""
+            cmake-extra-args: ""
             archive-ext: tar.gz
 
     steps:
@@ -79,13 +85,15 @@ jobs:
               -A "${{ matrix.cmake-arch }}" \
               -DBUILD_STATIC_LIBS=ON \
               -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_BUILD_TYPE=Release \
+              ${{ matrix.cmake-extra-args }}
           else
             cmake -B build \
               -G "${{ matrix.cmake-generator }}" \
               -DBUILD_STATIC_LIBS=ON \
               -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_BUILD_TYPE=Release \
+              ${{ matrix.cmake-extra-args }}
           fi
 
       - name: Build
@@ -112,7 +120,7 @@ jobs:
         run: |
           ARCHIVE_NAME="openpnp-capture-${{ matrix.target }}.${{ matrix.archive-ext }}"
           if [ "${{ matrix.archive-ext }}" = "zip" ]; then
-            cd artifact && zip -r "../${ARCHIVE_NAME}" .
+            cd artifact && powershell -Command "Compress-Archive -Path lib, include -DestinationPath '..\\${ARCHIVE_NAME}'"
           else
             cd artifact && tar -czf "../${ARCHIVE_NAME}" .
           fi

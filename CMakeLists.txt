@@ -19,6 +19,7 @@ set(OPENPNP_CAPTURE_LIB_SOVERSION "0" CACHE STRING "openpnp-capture library sove
 option(BUILD_SHARED_LIBS "Build shared library" ON)
 option(BUILD_STATIC_LIBS "Build static library" OFF)
 option(LINK_DYNAMIC_MSVC_RUNTIME "Link MSVC runtime statically" OFF)
+option(WITH_SIMD_LIBJPEG "Enable SIMD optimizations in libjpeg-turbo (disable for ARM64 Windows cross-compilation)" ON)
 
 # Validate library type options
 if(BUILD_STATIC_LIBS AND BUILD_SHARED_LIBS)
@@ -127,7 +128,7 @@ else()
             -DCMAKE_INSTALL_PREFIX=${LIBJPEG_TURBO_INSTALL_DIR}
             -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
             -DENABLE_SHARED=OFF
-            -DWITH_SIMD=ON
+            -DWITH_SIMD=${WITH_SIMD_LIBJPEG}
             -DWITH_TOOLS=OFF
             -DWITH_JAVA=OFF
             ${PIC_FLAG}
