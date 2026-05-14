@@ -93,7 +93,11 @@ HRESULT __stdcall StreamCallbackHandler::SampleCB(double time, IMediaSample* sam
     uint8_t *ptr;
     if ((sample->GetPointer(&ptr) == S_OK) && (m_stream != nullptr))
     {
-        m_stream->submitBuffer(ptr, bytes);
+        if (m_stream->isRawMode()) {
+            m_stream->submitRawBuffer(ptr, bytes);
+        } else {
+            m_stream->submitBuffer(ptr, bytes);
+        }
     
     }
     //sample->Release(); //who owns the IMediaSample ?!?
@@ -391,7 +395,12 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     AM_MEDIA_TYPE mt;
     memset(&mt, 0, sizeof(AM_MEDIA_TYPE));
     mt.majortype	= MEDIATYPE_Video;
-    mt.subtype		= MEDIASUBTYPE_RGB24; 
+    if (m_rawMode) {
+        mt.subtype = MEDIASUBTYPE_MJPG;
+        LOG(LOG_INFO, "DirectShow: SampleGrabber media type set to MEDIASUBTYPE_MJPG (raw mode)\n");
+    } else {
+        mt.subtype = MEDIASUBTYPE_RGB24;
+    }
 
     hr = m_sampleGrabber->SetMediaType(&mt);
     if (hr != S_OK)

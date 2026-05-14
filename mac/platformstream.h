@@ -64,6 +64,8 @@ NSObject<AVCaptureVideoDataOutputSampleBufferDelegate>
 
 class PlatformStream : public Stream
 {
+    friend class PlatformAVCaptureDelegate;
+
 public:
     PlatformStream();
     virtual ~PlatformStream();

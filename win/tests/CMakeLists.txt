@@ -17,4 +17,14 @@ set (SOURCE main.cpp ../../common/logging.cpp)
 
 add_executable(openpnp-capture-test ${SOURCE})
 
+set (RAW_SOURCE raw_test.cpp ../../common/logging.cpp)
+
+add_executable(openpnp-capture-raw-test ${RAW_SOURCE})
+
+set (JPEG_DECODE_BENCH_SOURCE jpeg_decode_bench.cpp)
+
+add_executable(openpnp-capture-jpeg-decode-bench ${JPEG_DECODE_BENCH_SOURCE})
+
 target_link_libraries(openpnp-capture-test openpnp-capture)
+target_link_libraries(openpnp-capture-raw-test openpnp-capture)
+target_link_libraries(openpnp-capture-jpeg-decode-bench openpnp-capture)

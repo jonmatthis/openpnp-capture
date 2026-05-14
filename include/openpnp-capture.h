@@ -231,8 +231,52 @@ DLLPUBLIC uint32_t Cap_hasNewFrame(CapContext ctx, CapStream stream);
     For debugging purposes */
 DLLPUBLIC uint32_t Cap_getStreamFrameCount(CapContext ctx, CapStream stream);
 
+/** Open a capture stream in raw MJPEG mode.
+    Frames are stored as compressed JPEG bytes, not decoded.
+    Use Cap_captureFrameRaw to retrieve raw JPEG data.
+    Use Cap_decodeFrame to decode on demand into RGB.
 
-/********************************************************************************** 
+    @param ctx The ID of the context.
+    @param index The device index of the capture device.
+    @param formatID The index/ID of the MJPEG frame buffer format.
+    @return The stream ID or -1 if the format is not MJPEG.
+*/
+DLLPUBLIC CapStream Cap_openStreamRaw(CapContext ctx, CapDeviceID index, CapFormatID formatID);
+
+/** Copy the most recent raw JPEG frame into the caller's buffer.
+
+    @param ctx The ID of the context.
+    @param stream The stream ID (must be opened with Cap_openStreamRaw).
+    @param jpegBufferPtr Pointer to caller's buffer for the raw JPEG data.
+    @param jpegBufferBytes Size of caller's buffer in bytes.
+    @param outBytes Receives the actual JPEG byte count (valid even on error).
+    @return CAPRESULT_OK on success, CAPRESULT_ERR if buffer too small or not a raw stream.
+*/
+DLLPUBLIC CapResult Cap_captureFrameRaw(CapContext ctx, CapStream stream,
+    void *jpegBufferPtr, uint32_t jpegBufferBytes, uint32_t *outBytes);
+
+/** Get the byte size of the current raw frame without copying it.
+
+    @param ctx The ID of the context.
+    @param stream The stream ID (must be opened with Cap_openStreamRaw).
+    @param outBytes Receives the size in bytes, or 0 if no frame received yet.
+    @return CAPRESULT_OK on success, CAPRESULT_ERR if no frame available or invalid stream.
+*/
+DLLPUBLIC CapResult Cap_getFrameSize(CapContext ctx, CapStream stream, uint32_t *outBytes);
+
+/** Decode the current raw JPEG frame into 24-bit RGB on demand.
+
+    @param ctx The ID of the context.
+    @param stream The stream ID (must be opened with Cap_openStreamRaw).
+    @param RGBbufferPtr Pointer to caller's buffer (must hold width*height*3 bytes).
+    @param RGBbufferBytes Size of caller's RGB buffer in bytes.
+    @return CAPRESULT_OK on success, CAPRESULT_ERR on failure.
+*/
+DLLPUBLIC CapResult Cap_decodeFrame(CapContext ctx, CapStream stream,
+    void *RGBbufferPtr, uint32_t RGBbufferBytes);
+
+
+/**********************************************************************************
      NEW CAMERA CONTROL API FUNCTIONS
 **********************************************************************************/
 

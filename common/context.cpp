@@ -173,6 +173,58 @@ int32_t Context::openStream(CapDeviceID id, CapFormatID formatID)
     return streamID;
 }
 
+int32_t Context::openStreamRaw(CapDeviceID id, CapFormatID formatID)
+{
+    deviceInfo *device = nullptr;
+
+    if (m_devices.size() > id) {
+        device = m_devices[id];
+    } else {
+        LOG(LOG_ERR, "openStreamRaw: No devices found\n");
+        return -1;
+    }
+
+    if (formatID >= device->m_formats.size()) {
+        LOG(LOG_ERR, "openStreamRaw: Requested format index out of range\n");
+        return -1;
+    }
+
+    uint32_t fourcc = device->m_formats[formatID].fourcc;
+    if (fourcc != 0x47504A4D) { // MJPG
+        LOG(LOG_ERR, "openStreamRaw: Format %s is not MJPEG. Raw mode requires MJPG.\n",
+            fourCCToString(fourcc).c_str());
+        return -1;
+    }
+
+    Stream *s = createPlatformStream();
+
+    uint32_t estimatedJPEGSize = device->m_formats[formatID].width *
+                                 device->m_formats[formatID].height * 3 / 4;
+
+    LOG(LOG_INFO,
+        "Opening stream in RAW mode (device %s, format=%d, fourcc=%s, "
+        "%ux%u @ %u fps), initial raw buffer capacity: %u bytes\n",
+        device->m_name.c_str(), formatID, fourCCToString(fourcc).c_str(),
+        device->m_formats[formatID].width, device->m_formats[formatID].height,
+        device->m_formats[formatID].fps, estimatedJPEGSize);
+
+    s->setRawMode(true, estimatedJPEGSize);
+
+    if (!s->open(this, device, device->m_formats[formatID].width,
+                 device->m_formats[formatID].height,
+                 device->m_formats[formatID].fourcc,
+                 device->m_formats[formatID].fps)) {
+        LOG(LOG_ERR, "Could not open raw stream for device %s\n", device->m_name.c_str());
+        delete s;
+        return -1;
+    }
+
+    LOG(LOG_INFO, "Raw stream opened successfully (stream=%d)\n", m_streamCounter);
+
+    int32_t streamID = storeStream(s);
+    return streamID;
+}
+
 bool Context::closeStream(int32_t streamID)
 {
     if (streamID < 0)
@@ -223,6 +275,48 @@ bool Context::captureFrame(int32_t streamID, uint8_t *RGBbufferPtr, size_t RGBbu
     }
     
     return m_streams[streamID]->captureFrame(RGBbufferPtr, static_cast<uint32_t>(RGBbufferBytes));
+}
+
+bool Context::captureFrameRaw(int32_t streamID, uint8_t *jpegBufferPtr, uint32_t jpegBufferBytes, uint32_t *outBytes)
+{
+    if (streamID < 0) {
+        LOG(LOG_ERR, "captureFrameRaw: negative stream ID\n");
+        return false;
+    }
+    Stream *stream = m_streams[streamID];
+    if (stream == nullptr) {
+        LOG(LOG_ERR, "captureFrameRaw: unknown stream ID\n");
+        return false;
+    }
+    return stream->captureFrameRaw(jpegBufferPtr, jpegBufferBytes, outBytes);
+}
+
+bool Context::getFrameSize(int32_t streamID, uint32_t *outBytes)
+{
+    if (streamID < 0) {
+        LOG(LOG_ERR, "getFrameSize: negative stream ID\n");
+        return false;
+    }
+    Stream *stream = m_streams[streamID];
+    if (stream == nullptr) {
+        LOG(LOG_ERR, "getFrameSize: unknown stream ID\n");
+        return false;
+    }
+    return stream->getFrameSize(outBytes);
+}
+
+bool Context::decodeFrame(int32_t streamID, uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes)
+{
+    if (streamID < 0) {
+        LOG(LOG_ERR, "decodeFrame: negative stream ID\n");
+        return false;
+    }
+    Stream *stream = m_streams[streamID];
+    if (stream == nullptr) {
+        LOG(LOG_ERR, "decodeFrame: unknown stream ID\n");
+        return false;
+    }
+    return stream->decodeFrame(RGBbufferPtr, RGBbufferBytes);
 }
 
 bool Context::hasNewFrame(int32_t streamID)

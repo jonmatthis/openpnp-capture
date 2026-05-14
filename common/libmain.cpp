@@ -167,8 +167,52 @@ DLLPUBLIC uint32_t Cap_getStreamFrameCount(CapContext ctx, CapStream stream)
     {
         Context *c = reinterpret_cast<Context*>(ctx);
         return c->getStreamFrameCount(stream);
-    }    
-    return 0;    
+    }
+    return 0;
+}
+
+DLLPUBLIC CapStream Cap_openStreamRaw(CapContext ctx, CapDeviceID index, CapFormatID formatID)
+{
+    if (ctx != 0)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        return c->openStreamRaw(index, formatID);
+    }
+    return -1;
+}
+
+DLLPUBLIC CapResult Cap_captureFrameRaw(CapContext ctx, CapStream stream,
+    void *jpegBufferPtr, uint32_t jpegBufferBytes, uint32_t *outBytes)
+{
+    if (ctx != 0 && outBytes != nullptr)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        return c->captureFrameRaw(stream, (uint8_t*)jpegBufferPtr, jpegBufferBytes, outBytes)
+            ? CAPRESULT_OK : CAPRESULT_ERR;
+    }
+    return CAPRESULT_ERR;
+}
+
+DLLPUBLIC CapResult Cap_getFrameSize(CapContext ctx, CapStream stream, uint32_t *outBytes)
+{
+    if (ctx != 0 && outBytes != nullptr)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        return c->getFrameSize(stream, outBytes) ? CAPRESULT_OK : CAPRESULT_ERR;
+    }
+    return CAPRESULT_ERR;
+}
+
+DLLPUBLIC CapResult Cap_decodeFrame(CapContext ctx, CapStream stream,
+    void *RGBbufferPtr, uint32_t RGBbufferBytes)
+{
+    if (ctx != 0)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        return c->decodeFrame(stream, (uint8_t*)RGBbufferPtr, RGBbufferBytes)
+            ? CAPRESULT_OK : CAPRESULT_ERR;
+    }
+    return CAPRESULT_ERR;
 }
 
 #if 0

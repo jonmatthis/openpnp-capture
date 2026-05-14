@@ -566,7 +566,15 @@ void PlatformStream::threadSubmitBuffer(void *ptr, size_t bytes)
             m_bufferMutex.unlock();
             break;
         case 0x47504A4D:    // MJPG
-            #ifdef FRAMEDUMP
+            if (m_rawMode) {
+                static bool loggedRawMode = false;
+                if (!loggedRawMode) {
+                    LOG(LOG_INFO, "V4L2: raw mode active, skipping MJPEG decode in threadSubmitBuffer\n");
+                    loggedRawMode = true;
+                }
+                submitRawBuffer((uint8_t*)ptr, bytes);
+            } else {
+#ifdef FRAMEDUMP
             {
                 static int32_t fcnt = 0;
                 char fname[100];
@@ -578,18 +586,19 @@ void PlatformStream::threadSubmitBuffer(void *ptr, size_t bytes)
                     fclose(fout);
                 }
             }
-            #endif        
+#endif
 
-            // here we implement our own ::submitBuffer replacement
-            // so we can decode the MJEG frames and copy the 24-bit
-            // RGB pixels into m_frameBuffer
-            m_bufferMutex.lock();
-            if (m_mjpegHelper.decompressFrame((uint8_t*)ptr, bytes, &m_frameBuffer[0], m_width, m_height))
-            {
-                m_newFrame = true; 
-                m_frames++;
+                // here we implement our own ::submitBuffer replacement
+                // so we can decode the MJEG frames and copy the 24-bit
+                // RGB pixels into m_frameBuffer
+                m_bufferMutex.lock();
+                if (m_mjpegHelper.decompressFrame((uint8_t*)ptr, bytes, &m_frameBuffer[0], m_width, m_height))
+                {
+                    m_newFrame = true;
+                    m_frames++;
+                }
+                m_bufferMutex.unlock();
             }
-            m_bufferMutex.unlock();
             break;
         default:
             LOG(LOG_DEBUG, "ThreadSubmitBuffer: unsupported format %s (%08X)\n", fourCCToString(m_fmt.fmt.pix.pixelformat).c_str(),
