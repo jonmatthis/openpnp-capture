@@ -60,6 +60,25 @@
     // sanity check on the stream pointer
     if (m_stream != nullptr)
     {
+        if (m_stream->isRawMode())
+        {
+            CMBlockBufferRef blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer);
+            if (blockBuffer != NULL) {
+                size_t length = 0;
+                char *dataPtr = NULL;
+                OSStatus status = CMBlockBufferGetDataPointer(blockBuffer, 0,
+                    NULL, &length, &dataPtr);
+                if (status == kCMBlockBufferNoErr && dataPtr != NULL) {
+                    m_stream->submitRawBuffer((uint8_t*)dataPtr, length);
+                } else {
+                    LOG(LOG_ERR, "AVFoundation: CMBlockBufferGetDataPointer failed with status %d\n", (int)status);
+                }
+            } else {
+                LOG(LOG_ERR, "AVFoundation: CMSampleBufferGetDataBuffer returned NULL in raw mode\n");
+            }
+            return;
+        }
+
         CMFormatDescriptionRef desc = CMSampleBufferGetFormatDescription(sampleBuffer);
         FourCharCode fourcc = CMFormatDescriptionGetMediaSubType(desc);
         CMVideoDimensions dims = CMVideoFormatDescriptionGetDimensions(desc);
@@ -228,11 +247,15 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
     AVCaptureVideoDataOutput* output = [AVCaptureVideoDataOutput new];
     [m_nativeSession addOutput:output];
-    output.videoSettings = nil;
 
-    output.videoSettings = [NSDictionary dictionaryWithObjectsAndKeys:
-        [NSNumber numberWithUnsignedInt:kCVPixelFormatType_32ARGB], (id)kCVPixelBufferPixelFormatTypeKey,
-        nil];
+    if (m_rawMode) {
+        output.videoSettings = nil;  // native format delivery (MJPEG for MJPEG cameras)
+        LOG(LOG_INFO, "AVFoundation: videoSettings=nil (native format delivery for raw mode)\n");
+    } else {
+        output.videoSettings = [NSDictionary dictionaryWithObjectsAndKeys:
+            [NSNumber numberWithUnsignedInt:kCVPixelFormatType_32ARGB], (id)kCVPixelBufferPixelFormatTypeKey,
+            nil];
+    }
 
     // discard data if the output queue is blocked
     [output setAlwaysDiscardsLateVideoFrames:true];

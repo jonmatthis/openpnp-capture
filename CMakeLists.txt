@@ -85,7 +85,8 @@ endif()
 add_library(openpnp-capture ${LIBRARY_TYPE} common/libmain.cpp
                                            common/context.cpp
                                            common/logging.cpp
-                                           common/stream.cpp)
+                                           common/stream.cpp
+                                           common/mjpeghelper.cpp)
 
 target_include_directories(openpnp-capture PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -95,6 +96,54 @@ target_include_directories(openpnp-capture PUBLIC
 set_target_properties(openpnp-capture PROPERTIES
                       VERSION ${OPENPNP_CAPTURE_LIB_VERSION}
                       SOVERSION ${OPENPNP_CAPTURE_LIB_SOVERSION})
+
+# ======== libjpeg-turbo setup for ALL platforms ========
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_search_module(TurboJPEG libturbojpeg)
+endif()
+if(TurboJPEG_FOUND)
+    target_link_directories(openpnp-capture PRIVATE ${TurboJPEG_LIBDIR})
+    target_include_directories(openpnp-capture PRIVATE ${TurboJPEG_INCLUDE_DIRS})
+    target_link_libraries(openpnp-capture PRIVATE ${TurboJPEG_LIBRARIES})
+else()
+    include(ExternalProject)
+    set(PIC_FLAG "")
+    set(RELEASE_FLAGS "")
+    if(UNIX)
+        set(PIC_FLAG "-DCMAKE_C_FLAGS=-fPIC" "-DCMAKE_CXX_FLAGS=-fPIC")
+        set(RELEASE_FLAGS "-DCMAKE_C_FLAGS_RELEASE=-O3" "-DCMAKE_CXX_FLAGS_RELEASE=-O3")
+    endif()
+    set(LIBJPEG_TURBO_PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libjpeg-turbo)
+    set(LIBJPEG_TURBO_INSTALL_DIR ${LIBJPEG_TURBO_PREFIX}/install)
+    if(MSVC)
+        set(TURBOJPEG_LIB_FILE "${LIBJPEG_TURBO_INSTALL_DIR}/lib/turbojpeg-static${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    else()
+        set(TURBOJPEG_LIB_FILE "${LIBJPEG_TURBO_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}turbojpeg${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    endif()
+    ExternalProject_Add(libjpeg-turbo-external
+        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/linux/contrib/libjpeg-turbo-3.1.2
+        CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=${LIBJPEG_TURBO_INSTALL_DIR}
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DENABLE_SHARED=OFF
+            -DWITH_SIMD=ON
+            -DWITH_TOOLS=OFF
+            -DWITH_JAVA=OFF
+            ${PIC_FLAG}
+            ${RELEASE_FLAGS}
+        BUILD_BYPRODUCTS ${TURBOJPEG_LIB_FILE}
+    )
+    add_library(turbojpeg-static STATIC IMPORTED)
+    set_target_properties(turbojpeg-static PROPERTIES
+        IMPORTED_LOCATION ${TURBOJPEG_LIB_FILE}
+    )
+    target_include_directories(openpnp-capture PRIVATE ${LIBJPEG_TURBO_INSTALL_DIR}/include)
+    add_dependencies(openpnp-capture libjpeg-turbo-external)
+    add_dependencies(turbojpeg-static libjpeg-turbo-external)
+    target_link_libraries(openpnp-capture PRIVATE turbojpeg-static)
+endif()
+# ======================================================
 
 IF (WIN32)
     if(MSVC)
@@ -116,7 +165,7 @@ IF (WIN32)
     # add files for WIN32
     target_sources(openpnp-capture PRIVATE win/platformcontext.cpp
                                            win/platformstream.cpp)
-    target_link_libraries(openpnp-capture strmiids)
+    target_link_libraries(openpnp-capture PRIVATE strmiids)
 
     # add windows-specific test application
     add_subdirectory(win/tests)
@@ -130,7 +179,7 @@ ELSEIF(APPLE)
                                            mac/uvcctrl.mm)
 
     # include OS X specific frameworks
-    target_link_libraries(openpnp-capture
+    target_link_libraries(openpnp-capture PRIVATE
         "-framework AVFoundation"
         "-framework Foundation"
         "-framework CoreMedia"
@@ -151,63 +200,12 @@ ELSEIF(UNIX)
 
     target_sources(openpnp-capture PRIVATE linux/platformcontext.cpp
                                            linux/platformstream.cpp
-                                           linux/mjpeghelper.cpp
                                            linux/yuvconverters.cpp)
 
-    # force include directories for libjpeg-turbo
-    include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/linux/contrib/libjpeg-turbo-3.1.2")
-
-    # add pthreads library 
+    # add pthreads library
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)    
     target_link_libraries(openpnp-capture PRIVATE Threads::Threads)
-
-    # add turbojpeg library
-    find_package(PkgConfig REQUIRED)
-    pkg_search_module(TurboJPEG libturbojpeg)
-    if( TurboJPEG_FOUND )
-        target_link_directories(openpnp-capture PRIVATE ${TurboJPEG_LIBDIR})
-        target_include_directories(openpnp-capture PRIVATE ${TurboJPEG_INCLUDE_DIRS})
-        target_link_libraries(openpnp-capture PRIVATE ${TurboJPEG_LIBRARIES})
-    else()
-        # compile libjpeg-turbo for MJPEG decoding support using ExternalProject
-        include(ExternalProject)
-
-        set(LIBJPEG_TURBO_PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libjpeg-turbo)
-        set(LIBJPEG_TURBO_INSTALL_DIR ${LIBJPEG_TURBO_PREFIX}/install)
-
-        ExternalProject_Add(libjpeg-turbo-external
-            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/linux/contrib/libjpeg-turbo-3.1.2
-            CMAKE_ARGS
-                -DCMAKE_INSTALL_PREFIX=${LIBJPEG_TURBO_INSTALL_DIR}
-                -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                -DENABLE_SHARED=OFF
-                -DWITH_SIMD=ON
-                -DWITH_TOOLS=OFF
-                -DWITH_JAVA=OFF
-                -DCMAKE_C_FLAGS=-fPIC
-                -DCMAKE_CXX_FLAGS=-fPIC
-                -DCMAKE_C_FLAGS_RELEASE=-O3 
-                -DCMAKE_CXX_FLAGS_RELEASE=-O3
-            BUILD_BYPRODUCTS 
-                ${LIBJPEG_TURBO_INSTALL_DIR}/lib/libturbojpeg.a
-        )
-
-        # Create imported target for turbojpeg
-        add_library(turbojpeg-static STATIC IMPORTED)
-        set_target_properties(turbojpeg-static PROPERTIES
-            IMPORTED_LOCATION ${LIBJPEG_TURBO_INSTALL_DIR}/lib/libturbojpeg.a
-        )
-
-        # Set up include directories
-        target_include_directories(openpnp-capture PRIVATE ${LIBJPEG_TURBO_INSTALL_DIR}/include)
-
-        # Make openpnp-capture depend on the external project
-        add_dependencies(openpnp-capture libjpeg-turbo-external)
-        add_dependencies(turbojpeg-static libjpeg-turbo-external)
-
-        target_link_libraries(openpnp-capture PRIVATE turbojpeg-static)
-    endif()
 
     # add linux-specific test application
     add_subdirectory(linux/tests)

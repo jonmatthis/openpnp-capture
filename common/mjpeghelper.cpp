@@ -2,7 +2,7 @@
 
     OpenPnp-Capture: a video capture subsystem.
 
-    Linux platform code, MJPEG decoding using libjpeg-turbo
+    Cross-platform MJPEG decoding using libjpeg-turbo
 
     Created by Niels Moseley on 7/6/17.
     Copyright (c) 2017 Niels Moseley.
@@ -28,7 +28,7 @@
 */
 
 #include "mjpeghelper.h"
-#include "../common/logging.h"
+#include "logging.h"
 
 bool MJPEGHelper::decompressFrame(const uint8_t *inBuffer,
     size_t inBytes, uint8_t *outBuffer,

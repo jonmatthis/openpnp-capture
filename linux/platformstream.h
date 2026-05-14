@@ -38,7 +38,7 @@
 #include <linux/videodev2.h>
 #include "../common/logging.h"
 #include "../common/stream.h"
-#include "mjpeghelper.h"
+#include "../common/mjpeghelper.h"
 
 
 class Context;          // pre-declaration

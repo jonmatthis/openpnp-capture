@@ -105,6 +105,19 @@ public:
     */
     int32_t openStream(CapDeviceID id, CapFormatID formatID);
 
+    /** Open a stream in raw (JPEG passthrough) mode.
+        Only succeeds for MJPEG formats. Returns -1 if format is not MJPEG. */
+    int32_t openStreamRaw(CapDeviceID id, CapFormatID formatID);
+
+    /** Copy latest raw JPEG frame. Returns false if buffer too small (outBytes still set). */
+    bool captureFrameRaw(int32_t streamID, uint8_t *jpegBufferPtr, uint32_t jpegBufferBytes, uint32_t *outBytes);
+
+    /** Get byte size of latest raw frame. Returns false if no frame yet or stream not raw. */
+    bool getFrameSize(int32_t streamID, uint32_t *outBytes);
+
+    /** Decode latest raw JPEG into 24-bit RGB on demand. */
+    bool decodeFrame(int32_t streamID, uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes);
+
     /** close the stream to a device */
     bool closeStream(int32_t streamID);
 

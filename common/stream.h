@@ -32,6 +32,7 @@
 #include <vector>
 #include <mutex>
 #include "logging.h"
+#include "mjpeghelper.h"
 
 class Context;      // pre-declaration
 class deviceInfo;   // pre-declaration
@@ -58,6 +59,30 @@ public:
         The internal new frame flag is reset by captureFrame.
     */
     bool hasNewFrame();
+
+    /** Returns true if stream is in raw (JPEG passthrough) mode */
+    bool isRawMode() const { return m_rawMode; }
+
+    /** Set raw mode and pre-size the raw buffer */
+    void setRawMode(bool mode, uint32_t estimatedJPEGSize) {
+        m_rawMode = mode;
+        if (mode) {
+            m_rawBuffer.resize(estimatedJPEGSize);
+        }
+    }
+
+    /** Copy the most recent raw JPEG frame into caller's buffer.
+        Sets *actualBytes to the actual JPEG byte count.
+        Returns false if buffer is too small (actualBytes still set). */
+    bool captureFrameRaw(uint8_t *outPtr, uint32_t outBytes, uint32_t *actualBytes);
+
+    /** Get the byte size of the current raw frame without copying.
+        Returns false if no frame has been received yet. */
+    bool getFrameSize(uint32_t *outBytes);
+
+    /** Decode the current raw JPEG frame into 24-bit RGB on demand.
+        Only valid on raw-mode streams. */
+    bool decodeFrame(uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes);
 
     /** Retrieve the most recently captured frame and copy it in a
         buffer pointed to by RGBbufferPtr. The maximum buffer size 
@@ -115,6 +140,12 @@ protected:
     */
     virtual void submitBuffer(const uint8_t* ptr, size_t bytes);
 
+    /** Thread-safe storing of raw (JPEG) frames.
+        Called by platform code when in raw mode.
+        Uses 2x growth strategy when the buffer needs expansion.
+    */
+    void submitRawBuffer(const uint8_t *ptr, size_t bytes);
+
     Context*    m_owner;                    ///< The context object associated with this stream
 
     uint32_t    m_width;                    ///< The width of the frame in pixels
@@ -125,6 +156,10 @@ protected:
     bool        m_newFrame;                 ///< new frame buffer flag
     std::vector<uint8_t> m_frameBuffer;     ///< raw frame buffer
     uint32_t    m_frames;                   ///< number of frames captured
+    bool        m_rawMode;                  // raw mode (store JPEG, skip decode)
+    std::vector<uint8_t> m_rawBuffer;       // compressed JPEG frame storage
+    uint32_t    m_rawFrameSize;             // actual byte count of current JPEG frame
+    MJPEGHelper m_mjpegHelper;              // on-demand JPEG to RGB decoder
 };
 
 #endif
