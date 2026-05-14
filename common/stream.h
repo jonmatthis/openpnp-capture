@@ -128,7 +128,6 @@ public:
     /** get automatic state of property (exposure, zoom etc) of camera/stream */
     virtual bool getAutoProperty(uint32_t propID, bool &enable) = 0;
 
-protected:
     /** Thread-safe copying of the 24-bit RGB buffer pointed to
         by 'ptr' with length 'bytes'.
 
@@ -146,6 +145,7 @@ protected:
     */
     void submitRawBuffer(const uint8_t *ptr, size_t bytes);
 
+protected:
     Context*    m_owner;                    ///< The context object associated with this stream
 
     uint32_t    m_width;                    ///< The width of the frame in pixels
