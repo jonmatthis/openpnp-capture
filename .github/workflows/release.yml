@@ -30,17 +30,17 @@ jobs:
             archive-ext: zip
 
           - target: macos-x86_64
-            os: macos-13
+            os: macos-latest
             cmake-generator: "Unix Makefiles"
             cmake-arch: ""
-            cmake-extra-args: ""
+            cmake-extra-args: "-DCMAKE_OSX_ARCHITECTURES=x86_64"
             archive-ext: tar.gz
 
           - target: macos-arm64
             os: macos-latest
             cmake-generator: "Unix Makefiles"
             cmake-arch: ""
-            cmake-extra-args: ""
+            cmake-extra-args: "-DCMAKE_OSX_ARCHITECTURES=arm64"
             archive-ext: tar.gz
 
           - target: linux-x86_64

@@ -175,7 +175,31 @@ void PlatformStream::close()
 }
 
 
-bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, uint32_t height, 
+// ---------------------------------------------------------------------------
+// Pin selection: CAPTURE (default) or PREVIEW (env-var override).
+//
+// CAPTURE is the correct pin for machine-vision cameras: it lets
+// IAMStreamConfig::SetFormat trigger reconnect on a connected pin,
+// which is how the post-Run MJPG re-apply works (see STEP 6 below).
+//
+// PREVIEW is offered as an escape hatch for cameras whose driver
+// throttles the CAPTURE pin (e.g. old consumer webcams like the
+// Microsoft LifeCam 3000).  Set OPENPNP_CAPTURE_USE_PREVIEW_PIN=1
+// to opt into the PREVIEW pin path.
+// ---------------------------------------------------------------------------
+static const GUID& captureOrPreviewPin()
+{
+    static bool checked = false;
+    static bool usePreview = false;
+    if (!checked) {
+        const char* env = getenv("OPENPNP_CAPTURE_USE_PREVIEW_PIN");
+        usePreview = (env && (strcmp(env, "1") == 0 || strcmp(env, "true") == 0));
+        checked = true;
+    }
+    return usePreview ? PIN_CATEGORY_PREVIEW : PIN_CATEGORY_CAPTURE;
+}
+
+bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, uint32_t height,
     uint32_t fourCC, uint32_t fps)
 {
     if (m_isOpen)
@@ -250,7 +274,12 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
     //set the desired frame buffer format
     IAMStreamConfig *pConfig = NULL;
-    hr = m_capture->FindInterface(&PIN_CATEGORY_CAPTURE, 0, m_sourceFilter, IID_IAMStreamConfig, (void**)&pConfig);
+    const GUID& videoPin = captureOrPreviewPin();
+    if (&videoPin == &PIN_CATEGORY_PREVIEW) {
+        LOG(LOG_WARNING, "  [pin override] using PREVIEW pin (OPENPNP_CAPTURE_USE_PREVIEW_PIN=1). MJPEG renegotiation may be less reliable.\n");
+    }
+
+    hr = m_capture->FindInterface(&videoPin, 0, m_sourceFilter, IID_IAMStreamConfig, (void**)&pConfig);
     if (FAILED(hr))
     {
         LOG(LOG_ERR,"Could not create IAMStreamConfig\n");
@@ -426,23 +455,9 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         return false;
     }       
 
-    /* Note: Although I had expected to have to use 'PIN_CATEGORY_CAPTURE',
-       using 'PIN_CATEGORY_PREVIEW' gives 30 fps at HD res on a Microsoft LifeCam 3000,
-       whereas 'PIN_CATEGORY_CAPTURE' results in 2.5 fps !?!
-
-       In order to not create a default display window, the end-point of the stream
-       must be a Null renderer. It can be created by:
-
-        //NULL RENDERER//
-        //used to give the video stream somewhere to go to.
-        hr = CoCreateInstance(CLSID_NullRenderer, NULL, CLSCTX_INPROC_SERVER, IID_IBaseFilter, (void**)(&m_nullRenderer));
-        if (FAILED(hr))
-        {
-            DebugPrintOut("ERROR: Could not create filter - NullRenderer\n");
-            stopDevice(deviceID);
-            return hr;
-        }
-    */
+    // See captureOrPreviewPin() above for the CAPTURE vs PREVIEW choice.
+    // The Null renderer gives the video stream a sink without opening
+    // a preview window on screen.
 
     // only create a valid NULL renderer in release builds!
     // FIXME: is this the behavior we actually want,
@@ -466,14 +481,14 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     }
     #endif
 
-    // Use CAPTURE pin instead of PREVIEW so that IAMStreamConfig::SetFormat
-    // triggers reconnection when called on a connected pin.
-    // The original code used PREVIEW because CAPTURE gave 2.5fps on a
-    // LifeCam 3000 — but our USB cameras need a connected CAPTURE pin
-    // so that post-Run format re-apply (the MJPG fix) can force DirectShow
-    // to renegotiate the media type.
+    // Connect the camera's output pin to the SampleGrabber.
+    // Pin selection is driven by captureOrPreviewPin():
+    //   CAPTURE (default) — needed so post-Run SetFormat+Reconnect can
+    //     force DirectShow to renegotiate the MJPEG media type.
+    //   PREVIEW (opt-in env var) — escape hatch for cameras whose driver
+    //     throttles the CAPTURE pin (e.g. LifeCam 3000 at 2.5fps).
     // This matches OpenCV's cap_dshow.cpp architecture.
-    hr = m_capture->RenderStream(&PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, m_sourceFilter, m_sampleGrabberFilter, m_nullRenderer);
+    hr = m_capture->RenderStream(&videoPin, &MEDIATYPE_Video, m_sourceFilter, m_sampleGrabberFilter, m_nullRenderer);
     if (hr < 0)
     {
         LOG(LOG_ERR,"Error calling RenderStream (HRESULT=%08X)\n", hr);
@@ -582,10 +597,11 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     {
         // --- Part A: find matching format and call SetFormat ---
         IAMStreamConfig *pConfig2 = NULL;
-        hr = m_capture->FindInterface(&PIN_CATEGORY_CAPTURE, 0,
+        hr = m_capture->FindInterface(&videoPin, 0,
             m_sourceFilter, IID_IAMStreamConfig, (void**)&pConfig2);
         LOG(LOG_ERR,
-            "  [MJPG fix A] looking for CAPTURE pin with IAMStreamConfig... found (ptr=%p)\n",
+            "  [MJPG fix A] looking for %s pin with IAMStreamConfig... found (ptr=%p)\n",
+                (&videoPin == &PIN_CATEGORY_PREVIEW) ? "PREVIEW" : "CAPTURE",
             (void*)pConfig2);
         if (SUCCEEDED(hr))
         {

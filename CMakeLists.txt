@@ -122,6 +122,10 @@ else()
     else()
         set(TURBOJPEG_LIB_FILE "${LIBJPEG_TURBO_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}turbojpeg${CMAKE_STATIC_LIBRARY_SUFFIX}")
     endif()
+    set(ARCH_FLAGS "")
+    if(DEFINED CMAKE_OSX_ARCHITECTURES AND NOT CMAKE_OSX_ARCHITECTURES STREQUAL "")
+        set(ARCH_FLAGS "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}")
+    endif()
     ExternalProject_Add(libjpeg-turbo-external
         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/linux/contrib/libjpeg-turbo-3.1.2
         CMAKE_ARGS
@@ -131,6 +135,7 @@ else()
             -DWITH_SIMD=${WITH_SIMD_LIBJPEG}
             -DWITH_TOOLS=OFF
             -DWITH_JAVA=OFF
+            ${ARCH_FLAGS}
             ${PIC_FLAG}
             ${RELEASE_FLAGS}
         BUILD_BYPRODUCTS ${TURBOJPEG_LIB_FILE}
