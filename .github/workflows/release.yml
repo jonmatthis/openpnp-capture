@@ -66,6 +66,10 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y nasm libgtk-3-dev
 
+      - name: Remove system turbojpeg (force vendored static build)
+        if: runner.os == 'macOS'
+        run: brew uninstall --ignore-dependencies jpeg-turbo 2>/dev/null || true
+
       - name: Install MSVC ARM64 toolchain
         if: matrix.cmake-arch == 'ARM64'
         shell: powershell
