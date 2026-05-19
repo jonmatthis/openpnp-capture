@@ -37,9 +37,22 @@ IF (UNIX)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 
-    # Add O3 optimizations and native architecture for release builds
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
+    # -march=native is invalid when cross-compiling (resolves to host CPU name
+    # which the target backend won't recognize, e.g. 'apple-m3' for x86_64)
+    set(_use_march_native TRUE)
+    if(CMAKE_CROSSCOMPILING)
+        set(_use_march_native FALSE)
+    elseif(APPLE AND DEFINED CMAKE_OSX_ARCHITECTURES AND NOT CMAKE_OSX_ARCHITECTURES STREQUAL "")
+        set(_use_march_native FALSE)
+    endif()
+
+    if(_use_march_native)
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
+    else()
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+    endif()
 ENDIF()
 
 # make CMAKE search the current cmake dir inside the
