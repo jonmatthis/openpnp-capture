@@ -182,7 +182,70 @@ DLLPUBLIC int32_t Cap_getNumFormats(CapContext ctx, CapDeviceID index);
     @param info pointer to a CapFormatInfo structure to be filled with data.
     @return The CapResult.
 */
-DLLPUBLIC CapResult Cap_getFormatInfo(CapContext ctx, CapDeviceID index, CapFormatID id, CapFormatInfo *info); 
+DLLPUBLIC CapResult Cap_getFormatInfo(CapContext ctx, CapDeviceID index, CapFormatID id, CapFormatInfo *info);
+
+
+/**********************************************************************************
+     DEVICE AVAILABILITY AND RE-ENUMERATION
+**********************************************************************************/
+
+/** Check whether a camera device is likely available for use.
+
+    This is a LIGHTWEIGHT probe — it does NOT power on the sensor, turn on
+    the camera LED, or capture any frames.  It performs the cheapest possible
+    platform-specific check:
+
+      - Linux:   opens /dev/videoN, checks for EBUSY, closes immediately.
+      - macOS:   reads AVCaptureDevice.isInUseByAnotherApplication.
+      - Windows: re-enumerates DirectShow and verifies the device filter
+                 can be bound with a capture/preview pin present.
+
+    LIMITATIONS: On Windows, DirectShow devices are shareable by default,
+    so binding the filter may succeed even when another process (that uses
+    DirectShow) is actively streaming.  Exclusive-mode apps (e.g. Windows
+    Camera via WinRT) may NOT be detected by this probe.  For a definitive
+    check, attempt Cap_openStream() — if that succeeds, the device is truly
+    available to this library.
+
+    @param ctx The ID of the context.
+    @param index The device index of the capture device.
+    @return CAPRESULT_OK if the device appears available,
+            CAPRESULT_ERR if the device cannot be probed (any reason:
+            exclusive lock, missing device, virtual device with no
+            DirectShow path, driver error, etc.),
+            CAPRESULT_DEVICENOTFOUND if the index is out of range.
+*/
+DLLPUBLIC CapResult Cap_isDeviceAvailable(CapContext ctx, CapDeviceID index);
+
+/** Refresh the device list to reflect currently attached/removed cameras.
+    After this call, Cap_getDeviceCount() will reflect the current system state.
+    Open streams are NOT affected — their underlying device handles remain valid.
+
+    Callers should re-query device count and names after this call, as device
+    indices may change.
+
+    Must not be called concurrently with device-list-accessing functions
+    (Cap_getDeviceCount, Cap_getDeviceName, Cap_openStream, etc.).
+
+    @param ctx The ID of the context.
+    @return CAPRESULT_OK on success, CAPRESULT_ERR on failure.
+*/
+DLLPUBLIC CapResult Cap_refreshDevices(CapContext ctx);
+
+/** Check whether the device backing an open stream is still connected.
+
+    On Linux, this runs VIDIOC_QUERYCAP on the open file descriptor.
+    On macOS, this checks -[AVCaptureDevice isConnected].
+    On Windows, this re-enumerates DirectShow and verifies the device path
+    still exists in the system (rather than querying the cached COM filter,
+    which survives physical unplug).
+
+    @param ctx The ID of the context.
+    @param stream The stream ID to check.
+    @return CAPRESULT_OK if the underlying device is still present,
+            CAPRESULT_ERR if the device has been disconnected or the stream is invalid.
+*/
+DLLPUBLIC CapResult Cap_isDeviceStillConnected(CapContext ctx, CapStream stream);
 
 
 /********************************************************************************** 

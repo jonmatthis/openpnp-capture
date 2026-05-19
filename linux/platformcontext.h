@@ -65,10 +65,13 @@ protected:
 
     uint32_t findMaxFrameRate(int fd, uint32_t pixelformat, uint32_t width, uint32_t height);
 
-    /** Enumerate V4L capture devices and put their 
-        information into the m_devices array 
+    /** Enumerate V4L capture devices and put their
+        information into the m_devices array
     */
-    virtual bool enumerateDevices();
+    virtual bool enumerateDevices() override;
+
+    /** Check if a V4L2 device is available (not EBUSY) */
+    virtual bool isDeviceAvailable(CapDeviceID id) override;
 
 };
 

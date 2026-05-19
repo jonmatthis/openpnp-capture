@@ -461,3 +461,86 @@ HRESULT FindCaptureDevice(IBaseFilter** ppSrcFilter, const wchar_t* devicePath)
     return E_FAIL;
 }
 
+bool PlatformContext::isDeviceAvailable(CapDeviceID id)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_contextMutex);
+
+    if (id >= m_devices.size() || m_devices[id] == nullptr)
+    {
+        return false;
+    }
+
+    platformDeviceInfo* info = static_cast<platformDeviceInfo*>(m_devices[id]);
+
+    // Re-enumerate DirectShow devices and verify ours still exists
+    ICreateDevEnum* dev_enum = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_SystemDeviceEnum, NULL,
+        CLSCTX_INPROC_SERVER, IID_ICreateDevEnum, (void**)&dev_enum);
+    if (FAILED(hr) || dev_enum == nullptr)
+    {
+        return false;
+    }
+    ScopedComPtr<ICreateDevEnum> devEnum(dev_enum);
+
+    IEnumMoniker* enum_moniker = nullptr;
+    hr = devEnum->CreateClassEnumerator(
+        CLSID_VideoInputDeviceCategory, &enum_moniker, 0);
+    if (hr != S_OK || enum_moniker == nullptr)
+    {
+        return false;
+    }
+    ScopedComPtr<IEnumMoniker> enumMoniker(enum_moniker);
+
+    IMoniker* moniker = nullptr;
+    bool found = false;
+    while (enumMoniker->Next(1, &moniker, 0) == S_OK)
+    {
+        ScopedComPtr<IMoniker> m(moniker);
+        IPropertyBag* pbag = nullptr;
+        if (SUCCEEDED(moniker->BindToStorage(0, 0, IID_IPropertyBag, (void**)&pbag)))
+        {
+            ScopedComPtr<IPropertyBag> propBag(pbag);
+            VARIANT varPath;
+            VariantInit(&varPath);
+            if (SUCCEEDED(pbag->Read(L"DevicePath", &varPath, 0)) &&
+                varPath.bstrVal == info->m_devicePath)
+            {
+                found = true;
+                VariantClear(&varPath);
+                break;
+            }
+            VariantClear(&varPath);
+        }
+    }
+
+    if (!found)
+    {
+        LOG(LOG_INFO, "Device %s not found in current DirectShow enumeration\n",
+            info->m_name.c_str());
+        return false;
+    }
+
+    // Stronger check: try to bind the filter and find the capture pin
+    IBaseFilter* pCap = nullptr;
+    hr = FindCaptureDevice(&pCap, info->m_devicePath.c_str());
+    if (FAILED(hr) || pCap == nullptr)
+    {
+        return false;
+    }
+
+    // Verify a capture or preview pin exists
+    IPin* pPin = nullptr;
+    bool hasPin = (FindPinByCategory(pCap, PINDIR_OUTPUT, PIN_CATEGORY_CAPTURE, &pPin) == S_OK);
+    if (!hasPin)
+    {
+        hasPin = (FindPinByCategory(pCap, PINDIR_OUTPUT, PIN_CATEGORY_PREVIEW, &pPin) == S_OK);
+    }
+    if (hasPin && pPin != nullptr)
+    {
+        pPin->Release();
+    }
+    pCap->Release();
+
+    return hasPin;
+}
+

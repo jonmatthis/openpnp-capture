@@ -608,8 +608,21 @@ void PlatformStream::threadSubmitBuffer(void *ptr, size_t bytes)
     }
 }
 
+bool PlatformStream::isDeviceConnected()
+{
+    if (m_deviceHandle < 0) return false;
+
+    struct v4l2_capability cap;
+    CLEAR(cap);
+    if (::ioctl(m_deviceHandle, VIDIOC_QUERYCAP, &cap) == -1)
+    {
+        return false;
+    }
+    return true;
+}
+
 bool PlatformStream::setFrameRate(uint32_t fps)
-{    
+{
     struct v4l2_streamparm param;
     CLEAR(param);
 

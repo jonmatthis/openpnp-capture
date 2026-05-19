@@ -322,6 +322,12 @@ bool PlatformStream::getPropertyLimits(uint32_t propID, int32_t *min, int32_t *m
     return false;
 }
 
+bool PlatformStream::isDeviceConnected()
+{
+    if (m_device == nil) return false;
+    return [m_device isConnected];
+}
+
 bool PlatformStream::setFrameRate(uint32_t fps)
 {
     //FIXME: unsupported

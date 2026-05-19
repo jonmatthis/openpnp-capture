@@ -63,13 +63,16 @@ protected:
     /** retrieve all the frame information and write it to the platformDeviceInfo object */
     bool enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *info);
 
-    /** Enumerate DirectShow capture devices and put their 
-        information into the m_devices array 
-        
+    /** Enumerate DirectShow capture devices and put their
+        information into the m_devices array
+
         Implement this function in a platform-dependent
         derived class.
     */
-    virtual bool enumerateDevices();
+    virtual bool enumerateDevices() override;
+
+    /** Check if a DirectShow device is available (can be bound) */
+    virtual bool isDeviceAvailable(CapDeviceID id) override;
 
     /** Convert a wide character string to an UTF-8 string 
         

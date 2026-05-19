@@ -31,6 +31,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <mutex>
 #include <stdint.h>
 
 #include "openpnp-capture.h"
@@ -55,7 +56,7 @@ public:
         so all devices must be present in the system when
         the Context is created or devices will not be found.
 
-        Re-enumeration support is pending.
+        Use refreshDevices() to re-enumerate after hotplug events.
     */
     Context();
     virtual ~Context();
@@ -195,6 +196,37 @@ public:
     */
     bool getStreamAutoProperty(int32_t stream, uint32_t propID, bool &enable);
 
+    /** Check if a device is available (not in use by another process).
+        Platform-specific implementation. On Linux, probes /dev/videoN for EBUSY.
+        On macOS, checks isInUseByAnotherApplication.
+        On Windows, verifies the DirectShow device can be bound.
+
+        @param id the device index.
+        @return true if the device appears available for use.
+    */
+    virtual bool isDeviceAvailable(CapDeviceID id) = 0;
+
+    /** Refresh the device list to reflect currently attached/removed cameras.
+        After this call, Cap_getDeviceCount() will reflect the current system state.
+        Open streams are NOT affected.
+
+        Callers should re-query device count and names after this call, as device
+        indices may change.
+
+        Must not be called concurrently with device-list-accessing functions
+        (getDeviceCount, getDeviceName, openStream, etc.).
+
+        @return true on success.
+    */
+    bool refreshDevices();
+
+    /** Check whether the device backing an open stream is still connected.
+
+        @param streamID the ID of the open stream.
+        @return true if the underlying device is still present.
+    */
+    bool isDeviceStillConnected(int32_t streamID);
+
 protected:
     /** Enumerate all capture devices and put their 
         information (name, buffer formats etc) into 
@@ -217,6 +249,7 @@ protected:
     std::vector<deviceInfo*>    m_devices;          ///< list of enumerated devices
     std::map<int32_t, Stream*>  m_streams;          ///< collection of streams
     int32_t                     m_streamCounter;    ///< counter to generate stream IDs
+    mutable std::recursive_mutex m_contextMutex;    ///< protects m_devices during refreshDevices
 };
 
 /** convert a FOURCC uint32_t to human readable form */

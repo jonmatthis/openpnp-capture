@@ -232,3 +232,35 @@ bool PlatformContext::enumerateDevices()
     return true;
 }
 
+bool PlatformContext::isDeviceAvailable(CapDeviceID id)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_contextMutex);
+
+    if (id >= m_devices.size() || m_devices[id] == nullptr)
+    {
+        return false;
+    }
+
+    platformDeviceInfo* info = static_cast<platformDeviceInfo*>(m_devices[id]);
+    AVCaptureDevice* device = (__bridge AVCaptureDevice*)info->m_captureDevice;
+
+    if (device == nil) return false;
+
+    if (![device isConnected])
+    {
+        return false;
+    }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    if ([device isInUseByAnotherApplication])
+    {
+        LOG(LOG_INFO, "Device %s is in use by another application\n",
+            info->m_name.c_str());
+        return false;
+    }
+#pragma clang diagnostic pop
+
+    return true;
+}
+

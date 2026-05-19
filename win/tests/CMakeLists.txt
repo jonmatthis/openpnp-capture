@@ -29,7 +29,17 @@ set (DIAGNOSTIC_SOURCE diagnostic_settings.cpp ../../common/logging.cpp)
 
 add_executable(diagnostic_settings ${DIAGNOSTIC_SOURCE})
 
+set (AVAILABILITY_SOURCE availability_test.cpp ../../common/logging.cpp)
+
+add_executable(availability_test ${AVAILABILITY_SOURCE})
+
+set (INUSE_SOURCE inuse_test.cpp ../../common/logging.cpp)
+
+add_executable(inuse_test ${INUSE_SOURCE})
+
 target_link_libraries(openpnp-capture-test openpnp-capture)
 target_link_libraries(openpnp-capture-raw-test openpnp-capture)
 target_link_libraries(openpnp-capture-jpeg-decode-bench openpnp-capture)
 target_link_libraries(diagnostic_settings openpnp-capture)
+target_link_libraries(availability_test openpnp-capture)
+target_link_libraries(inuse_test openpnp-capture)

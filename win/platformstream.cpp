@@ -170,8 +170,9 @@ void PlatformStream::close()
     m_owner = nullptr;
     m_width = 0;
     m_height = 0;
+    m_devicePath.clear();
     m_frameBuffer.resize(0);
-    m_isOpen = false;    
+    m_isOpen = false;
 }
 
 
@@ -257,6 +258,8 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         LOG(LOG_ERR,"Could not create IMediaControl\n");
         return false;
     }
+
+    m_devicePath = dinfo->m_devicePath;
 
     hr = FindCaptureDevice(&m_sourceFilter, dinfo->m_devicePath.c_str());
     if (hr != S_OK)
@@ -732,6 +735,22 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     }
     #endif    
 
+    return true;
+}
+
+bool PlatformStream::isDeviceConnected()
+{
+    if (m_devicePath.empty()) return false;
+
+    // Re-enumerate DirectShow to check if the device is still on the bus,
+    // rather than querying the cached COM filter (which survives unplug).
+    IBaseFilter* pCap = nullptr;
+    HRESULT hr = FindCaptureDevice(&pCap, m_devicePath.c_str());
+    if (FAILED(hr) || pCap == nullptr)
+    {
+        return false;
+    }
+    pCap->Release();
     return true;
 }
 

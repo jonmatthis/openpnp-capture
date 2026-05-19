@@ -51,10 +51,13 @@ public:
     virtual ~PlatformContext();
 
 protected:
-    /** Enumerate AVCaptureDevices and put their 
-        information into the m_devices array 
+    /** Enumerate AVCaptureDevices and put their
+        information into the m_devices array
     */
-    virtual bool enumerateDevices();
+    virtual bool enumerateDevices() override;
+
+    /** Check if an AVCaptureDevice is available (not in use, connected) */
+    virtual bool isDeviceAvailable(CapDeviceID id) override;
 private:
     int cameraPermissionReceived; // 0 = waiting, 1 = success, -1 = error
 };

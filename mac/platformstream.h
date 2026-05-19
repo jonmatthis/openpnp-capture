@@ -104,6 +104,8 @@ public:
     /** set a new framerate */
     virtual bool setFrameRate(uint32_t fps) override;
 
+    virtual bool isDeviceConnected() override;
+
 protected:
     /* AVFoundation objects to control the camera on OSX */
     PlatformAVCaptureDelegate* m_captureDelegate;

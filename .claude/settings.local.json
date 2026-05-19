@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "Bash(where nmake *)",
+      "Bash(where cmake *)",
+      "Bash(where cl *)",
+      "Bash(./availability_test.exe)"
     ]
   }
 }

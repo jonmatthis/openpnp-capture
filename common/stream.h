@@ -102,6 +102,11 @@ public:
         return m_isOpen;
     }
 
+    /** Check if the underlying device is still connected/present.
+        Default returns true (assumes connected).
+        Platform streams should override for accurate detection. */
+    virtual bool isDeviceConnected() { return true; }
+
     /** Return the FOURCC media type of the stream */
     virtual uint32_t getFOURCC() = 0;
 

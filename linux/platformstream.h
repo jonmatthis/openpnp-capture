@@ -134,6 +134,8 @@ public:
 
     virtual bool setFrameRate(uint32_t fps) override;
 
+    virtual bool isDeviceConnected() override;
+
     /** called by the capture thread/function to query if it
         should quit */
     bool getThreadQuitState() const

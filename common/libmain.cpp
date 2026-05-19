@@ -103,7 +103,41 @@ DLLPUBLIC CapResult Cap_getFormatInfo(CapContext ctx, CapDeviceID index, CapForm
             return CAPRESULT_OK;
         }
     }
-    return CAPRESULT_ERR;    
+    return CAPRESULT_ERR;
+}
+
+DLLPUBLIC CapResult Cap_isDeviceAvailable(CapContext ctx, CapDeviceID index)
+{
+    if (ctx != 0)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        if (index >= c->getDeviceCount())
+        {
+            return CAPRESULT_DEVICENOTFOUND;
+        }
+        return c->isDeviceAvailable(index) ? CAPRESULT_OK : CAPRESULT_ERR;
+    }
+    return CAPRESULT_ERR;
+}
+
+DLLPUBLIC CapResult Cap_refreshDevices(CapContext ctx)
+{
+    if (ctx != 0)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        return c->refreshDevices() ? CAPRESULT_OK : CAPRESULT_ERR;
+    }
+    return CAPRESULT_ERR;
+}
+
+DLLPUBLIC CapResult Cap_isDeviceStillConnected(CapContext ctx, CapStream stream)
+{
+    if (ctx != 0)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        return c->isDeviceStillConnected(stream) ? CAPRESULT_OK : CAPRESULT_ERR;
+    }
+    return CAPRESULT_ERR;
 }
 
 DLLPUBLIC void Cap_setLogLevel(uint32_t level)

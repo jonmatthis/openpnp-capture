@@ -28,7 +28,8 @@ OpenPnP Capture is a cross platform video capture library for C with a focus on 
 | White balance control    |    Yes     |     Yes      |      Yes       |
 | Common C API             |    Yes     |     Yes      |      Yes       |
 | Framerate control        |     No     |      No      |       No       |
-| Re-Enumeration           |     No     |      No      |       No       |
+| Re-Enumeration           |    Yes     |     Yes      |      Yes       |
+| Availability probe       |    Yes     |     Yes      |      Yes       |
 
 
 # Getting Started
@@ -137,6 +138,120 @@ The library automatically configures the correct OS-level pipeline based on `Cap
 - **MJPEG formats only.** Raw mode requires an MJPEG-capable format (fourcc `MJPG`). Non-MJPEG formats return -1 from `Cap_openStreamRaw`.
 - **Single-frame buffer.** The library stores the latest frame only. If your processing is slower than the camera's framerate, frames will be overwritten.
 - **Decode is optional.** `Cap_captureFrame` (RGB) returns `CAPRESULT_ERR` on raw streams. Use `Cap_decodeFrame` for on-demand JPEG→RGB conversion.
+
+---
+
+# Device Availability & Re-enumeration
+
+Three new API functions provide camera availability probing and runtime device list refresh.
+
+## API
+
+```c
+// Check whether a camera device is likely available for use.
+// Returns CAPRESULT_OK if available, CAPRESULT_ERR if in use or unavailable,
+// CAPRESULT_DEVICENOTFOUND if the index is out of range.
+DLLPUBLIC CapResult Cap_isDeviceAvailable(CapContext ctx, CapDeviceID index);
+
+// Refresh the device list to reflect currently attached/removed cameras.
+// After this call, re-query Cap_getDeviceCount / Cap_getDeviceName —
+// device indices may change. Open streams are NOT affected.
+DLLPUBLIC CapResult Cap_refreshDevices(CapContext ctx);
+
+// Check whether the device backing an open stream is still physically
+// connected. Returns CAPRESULT_OK if present, CAPRESULT_ERR if disconnected
+// or the stream is invalid.
+DLLPUBLIC CapResult Cap_isDeviceStillConnected(CapContext ctx, CapStream stream);
+```
+
+## Usage Pattern
+
+```c
+CapContext ctx = Cap_createContext();
+
+// ── Check availability before opening ──────────────────────────────
+if (Cap_isDeviceAvailable(ctx, 0) == CAPRESULT_OK) {
+    CapStream stream = Cap_openStream(ctx, 0, 0);
+    // ... capture ...
+}
+
+// ── Poll for disconnection ──────────────────────────────────────────
+if (Cap_isDeviceStillConnected(ctx, stream) != CAPRESULT_OK) {
+    printf("Camera disconnected!\n");
+}
+
+// ── Detect hotplug ──────────────────────────────────────────────────
+Cap_refreshDevices(ctx);
+uint32_t newCount = Cap_getDeviceCount(ctx);
+// re-query device names/IDs — indices may have changed
+```
+
+## Platform Semantics
+
+| Platform | "Available" checks | "Still connected" checks |
+|---|---|---|
+| **Linux** | Opens `/dev/videoN` with `O_RDWR \| O_NONBLOCK`; returns unavailable if `EBUSY` | `VIDIOC_QUERYCAP` ioctl on the open fd |
+| **macOS** | `-[AVCaptureDevice isConnected]` + `isInUseByAnotherApplication` | `-[AVCaptureDevice isConnected]` |
+| **Windows** | Re-enumerates DirectShow devices, binds filter, verifies capture/preview pin | Re-enumerates DirectShow to check device path still exists |
+
+## Thread Safety
+
+`Cap_refreshDevices` uses internal locking. However, it **must not** be called
+concurrently with `Cap_getDeviceCount`, `Cap_getDeviceName`, `Cap_getDeviceUniqueID`,
+`Cap_getNumFormats`, `Cap_getFormatInfo`, or `Cap_openStream` from another thread.
+
+## Test Programs
+
+Two test executables exercise the new functionality:
+
+### `availability_test.exe` — Disconnect & reconnect
+
+```bash
+# Automated checks (null safety, index validation, refresh stability)
+availability_test.exe
+
+# Interactive: prompts you to physically unplug/replug a camera
+availability_test.exe --interactive --camera 2
+```
+
+### `inuse_test.exe` — Quiet probe vs definitive check
+
+Demonstrates the TWO TIERS of availability detection:
+
+- **Tier 1** — `Cap_isDeviceAvailable()`: fast (~ms), non-invasive, no sensor power-on
+- **Tier 2** — `Cap_openStream()` + capture frame + close: slow (~500ms+), powers on sensor, proves real access
+
+```bash
+# Compare Tier 1 vs Tier 2 for ALL cameras (parallel, ~3s total)
+inuse_test.exe
+
+# Test only camera 2
+inuse_test.exe --camera 2
+
+# Interactive OBS/Windows Camera in-use test
+inuse_test.exe --interactive
+```
+
+### Two-tier pattern for consumers
+
+For best results, use the two-tier pattern:
+
+```c
+// Tier 1 — fast scan of all cameras
+for (int i = 0; i < Cap_getDeviceCount(ctx); i++) {
+    if (Cap_isDeviceAvailable(ctx, i) == CAPRESULT_OK) {
+        // Camera likely free — candidate for opening
+    }
+}
+
+// Tier 2 — definitive check before committing
+CapStream s = Cap_openStream(ctx, chosenDevice, chosenFormat);
+if (s >= 0) {
+    // Camera is truly available — start capturing
+} else {
+    // Camera is locked by another app (or broken) — try another
+}
+```
 
 ---
 

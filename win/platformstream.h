@@ -35,6 +35,7 @@
 #include <ksmedia.h>
 
 #include <stdint.h>
+#include <string>
 #include <vector>
 #include <mutex>
 #include "../common/logging.h"
@@ -154,6 +155,8 @@ public:
     /** get automatic state of property (exposure, zoom etc) of camera/stream */
     virtual bool getAutoProperty(uint32_t propID, bool &enabled) override;
 
+    virtual bool isDeviceConnected() override;
+
 protected:
     /** A re-implementation of Stream::submitBuffer with BGR to RGB conversion */
     virtual void submitBuffer(const uint8_t *ptr, size_t bytes) override;
@@ -191,6 +194,8 @@ protected:
     StreamCallbackHandler *m_callbackHandler;
 
     VIDEOINFOHEADER m_videoInfo;            ///< video information of current captured stream
+
+    std::wstring    m_devicePath;           ///< device path for re-enumeration checks
 
     DWORD dwRotRegister;    ///< for exposing the filtergraph to GraphEdt
 };

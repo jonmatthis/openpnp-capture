@@ -32,6 +32,8 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <string>
+#include <cstring>
+#include <cerrno>
 #include <memory.h>
 #include <linux/videodev2.h>
 
@@ -199,7 +201,37 @@ bool PlatformContext::queryFrameSize(int fd, uint32_t index, uint32_t pixelforma
     return false;
 }
 
-uint32_t PlatformContext::findMaxFrameRate(int fd, uint32_t pixelformat, 
+bool PlatformContext::isDeviceAvailable(CapDeviceID id)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_contextMutex);
+
+    if (id >= m_devices.size() || m_devices[id] == nullptr)
+    {
+        return false;
+    }
+
+    platformDeviceInfo* info = static_cast<platformDeviceInfo*>(m_devices[id]);
+
+    int fd = ::open(info->m_devicePath.c_str(), O_RDWR | O_NONBLOCK);
+    if (fd == -1)
+    {
+        if (errno == EBUSY)
+        {
+            LOG(LOG_INFO, "Device %s is busy (EBUSY)\n", info->m_devicePath.c_str());
+        }
+        else
+        {
+            LOG(LOG_ERR, "Device %s cannot be opened: %s\n",
+                info->m_devicePath.c_str(), strerror(errno));
+        }
+        return false;
+    }
+
+    ::close(fd);
+    return true;
+}
+
+uint32_t PlatformContext::findMaxFrameRate(int fd, uint32_t pixelformat,
     uint32_t width, uint32_t height)
 {
     uint32_t fps = 0;

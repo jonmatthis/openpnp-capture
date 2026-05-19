@@ -465,6 +465,35 @@ bool Context::getStreamAutoProperty(int32_t streamID, uint32_t propertyID, bool 
     return stream->getAutoProperty(propertyID, enable);
 }
 
+bool Context::refreshDevices()
+{
+    std::lock_guard<std::recursive_mutex> lock(m_contextMutex);
+
+    for (auto* d : m_devices) {
+        delete d;
+    }
+    m_devices.clear();
+
+    return enumerateDevices();
+}
+
+bool Context::isDeviceStillConnected(int32_t streamID)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_contextMutex);
+
+    auto it = m_streams.find(streamID);
+    if (it == m_streams.end()) {
+        return false;
+    }
+
+    Stream* stream = it->second;
+    if (!stream->isOpen()) {
+        return false;
+    }
+
+    return stream->isDeviceConnected();
+}
+
 /** convert a FOURCC uint32_t to human readable form */
 std::string fourCCToString(uint32_t fourcc)
 {
