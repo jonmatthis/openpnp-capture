@@ -166,12 +166,12 @@ int32_t Context::openStream(CapDeviceID id, CapFormatID formatID)
         LOG_ERROR("Could not open stream for device {}", device->m_name.c_str());
         return -1;
     }
-    else
-    {
-        LOG_DEBUG("FOURCC = {}", fourCCToString(s->getFOURCC()).c_str());
-    }
-
     int32_t streamID = storeStream(s);
+    LOG_INFO("Stream opened: device=\"{}\" stream={}  {}x{}  {}  @{} fps",
+             device->m_name.c_str(), streamID,
+             s->getWidth(), s->getHeight(),
+             fourCCToString(s->getFOURCC()).c_str(),
+             device->m_formats[formatID].fps);
     return streamID;
 }
 
@@ -203,7 +203,7 @@ int32_t Context::openStreamRaw(CapDeviceID id, CapFormatID formatID)
     uint32_t estimatedJPEGSize = device->m_formats[formatID].width *
                                  device->m_formats[formatID].height * 3 / 4;
 
-    LOG_INFO(
+    LOG_DEBUG(
         "Opening stream in RAW mode (device {}, format={}, fourcc={}, "
         "{}x{} @ {} fps), initial raw buffer capacity: {} bytes",
         device->m_name.c_str(), formatID, fourCCToString(fourcc).c_str(),
@@ -221,9 +221,12 @@ int32_t Context::openStreamRaw(CapDeviceID id, CapFormatID formatID)
         return -1;
     }
 
-    LOG_INFO("Raw stream opened successfully (stream={})", m_streamCounter);
-
     int32_t streamID = storeStream(s);
+    LOG_INFO("Stream opened: device=\"{}\" stream={}  {}x{}  {}  @{} fps  (raw MJPEG)",
+             device->m_name.c_str(), streamID,
+             s->getWidth(), s->getHeight(),
+             fourCCToString(s->getFOURCC()).c_str(),
+             device->m_formats[formatID].fps);
     return streamID;
 }
 

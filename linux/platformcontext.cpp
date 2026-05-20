@@ -77,7 +77,6 @@ bool PlatformContext::enumerateDevices()
 
         if ((fd = ::open(fname, O_RDWR /* required */ | O_NONBLOCK)) == -1)
         {
-            //LOG_ERROR("enumerateDevices: Can't open device %s", fname);
             continue;
         }
 
@@ -228,7 +227,7 @@ bool PlatformContext::isDeviceAvailable(CapDeviceID id)
     {
         if (errno == EBUSY)
         {
-            LOG_INFO("Device {} is busy (EBUSY)", info->m_devicePath.c_str());
+            LOG_WARN("Device {} is busy (EBUSY)", info->m_devicePath.c_str());
         }
         else
         {

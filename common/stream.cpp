@@ -155,7 +155,7 @@ bool Stream::captureFrameRaw(uint8_t *outPtr, uint32_t outBytes, uint32_t *actua
 
     memcpy(outPtr, &m_rawBuffer[0], m_rawFrameSize);
     m_newFrame = false;
-    LOG_DEBUG("captureFrameRaw: delivering bytes={} to caller", m_rawFrameSize);
+    LOG_TRACE("captureFrameRaw: delivering bytes={} to caller", m_rawFrameSize);
     m_bufferMutex.unlock();
     return true;
 }
@@ -195,7 +195,7 @@ bool Stream::decodeFrame(uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes)
         return false;
     }
 
-    LOG_INFO("decodeFrame: decompressing: jpeg_bytes={} rgb={}x{}",
+    LOG_TRACE("decodeFrame: decompressing: jpeg_bytes={} rgb={}x{}",
              m_rawFrameSize, m_width, m_height);
 
     bool ok = m_mjpegHelper.decompressFrame(

@@ -63,7 +63,7 @@ public:
 
     ~StreamCallbackHandler()
     {
-        LOG_INFO("Callback counter = {}", m_callbackCounter);
+        LOG_DEBUG("Callback counter = {}", m_callbackCounter);
     }
 
     /** callback handler used in this library */

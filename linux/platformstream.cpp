@@ -226,7 +226,6 @@ void captureThreadFunction(PlatformStream *stream, int fd, size_t bufferSizeByte
 
         // read will only return complete buffers
         stream->threadSubmitBuffer(&buffer[0], actualBytesRead);
-        LOG_INFO("yay");
     }
 }
 
@@ -356,7 +355,7 @@ PlatformStream::~PlatformStream()
 
 void PlatformStream::close()
 {
-    LOG_INFO("closing stream");
+    LOG_DEBUG("closing stream");
 
     m_owner = nullptr;
     m_width = 0;
@@ -388,7 +387,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 {
     if (m_isOpen)
     {
-        LOG_INFO("open() was called on an active stream.");
+        LOG_WARN("open() was called on an active stream.");
         close();
     }
 
@@ -407,7 +406,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     platformDeviceInfo *dinfo = dynamic_cast<platformDeviceInfo*>(device);
     if (dinfo == NULL)
     {
-        LOG_CRIT("Could not cast deviceInfo* to platfromDeviceInfo*!");
+        LOG_CRIT("Could not cast deviceInfo* to platformDeviceInfo*!");
         return false;
     }
 
@@ -455,7 +454,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         return false;
     }
 
-    LOG_INFO("Format buffer type: {}", m_fmt.type);
+    LOG_DEBUG("Format buffer type: {}", m_fmt.type);
     if (m_fmt.type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
     {
         LOG_ERROR("Buffer type ({}) not supported!", m_fmt.type);
@@ -466,10 +465,10 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     m_width = m_fmt.fmt.pix.width;
     m_height = m_fmt.fmt.pix.height;
 
-    LOG_INFO("Width  = {} pixels", m_fmt.fmt.pix.width);
-    LOG_INFO("Height = {} pixels", m_fmt.fmt.pix.height);
-    LOG_INFO("FOURCC = {}", fourCCToString(m_fmt.fmt.pix.pixelformat).c_str());
-    LOG_INFO("FPS    = {}", fps);
+    LOG_DEBUG("Width  = {} pixels", m_fmt.fmt.pix.width);
+    LOG_DEBUG("Height = {} pixels", m_fmt.fmt.pix.height);
+    LOG_DEBUG("FOURCC = {}", fourCCToString(m_fmt.fmt.pix.pixelformat).c_str());
+    LOG_DEBUG("FPS    = {}", fps);
 
     // set the desired frame rate
     v4l2_streamparm sparam;
@@ -569,7 +568,7 @@ void PlatformStream::threadSubmitBuffer(void *ptr, size_t bytes)
             if (m_rawMode) {
                 static bool loggedRawMode = false;
                 if (!loggedRawMode) {
-                    LOG_INFO("V4L2: raw mode active, skipping MJPEG decode in threadSubmitBuffer");
+                    LOG_DEBUG("V4L2: raw mode active, skipping MJPEG decode in threadSubmitBuffer");
                     loggedRawMode = true;
                 }
                 submitRawBuffer((uint8_t*)ptr, bytes);

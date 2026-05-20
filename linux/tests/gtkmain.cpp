@@ -403,7 +403,7 @@ int main (int argc, char *argv[])
     // abort if the format was -1
     if (deviceFormatID == 0xFFFFFFFF)
     {
-        LOG_INFO( "Done.");
+        LOG_DEBUG( "Done.");
         return 0;
     }
 

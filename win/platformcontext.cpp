@@ -101,7 +101,7 @@ bool PlatformContext::enumerateDevices()
 	if (hr == S_FALSE)
     {
         // no devices found!
-        LOG_INFO("No devices found");
+        LOG_WARN("No devices found");
         return true;
     }
     if (hr != S_OK)

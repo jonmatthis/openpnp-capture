@@ -144,7 +144,7 @@ PlatformStream::~PlatformStream()
 
 void PlatformStream::close()
 {
-    LOG_INFO( "closing stream");
+    LOG_DEBUG( "closing stream");
     
     if (m_nativeSession != nullptr)
     {
@@ -163,7 +163,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 {
     if (m_isOpen)
     {
-        LOG_INFO("open() was called on an active stream.");
+        LOG_WARN("open() was called on an active stream.");
         close();
     }
 
@@ -182,7 +182,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     platformDeviceInfo *dinfo = dynamic_cast<platformDeviceInfo*>(device);
     if (dinfo == NULL)
     {
-        LOG_CRIT( "Could not cast deviceInfo* to platfromDeviceInfo*!");
+        LOG_CRIT( "Could not cast deviceInfo* to platformDeviceInfo*!");
         return false;
     }
 
@@ -250,7 +250,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
     if (m_rawMode) {
         output.videoSettings = nil;  // native format delivery (MJPEG for MJPEG cameras)
-        LOG_INFO( "AVFoundation: videoSettings=nil (native format delivery for raw mode)");
+        LOG_DEBUG( "AVFoundation: videoSettings=nil (native format delivery for raw mode)");
     } else {
         output.videoSettings = [NSDictionary dictionaryWithObjectsAndKeys:
             [NSNumber numberWithUnsignedInt:kCVPixelFormatType_32ARGB], (id)kCVPixelBufferPixelFormatTypeKey,
@@ -316,7 +316,7 @@ bool PlatformStream::getPropertyLimits(uint32_t propID, int32_t *min, int32_t *m
 {
     if ((m_uvc != nullptr) && (min != nullptr) && (max != nullptr) && (dValue != nullptr))
     {
-        LOG_INFO("PlatformStream::getPropertyLimits");
+        LOG_TRACE("PlatformStream::getPropertyLimits");
         return m_uvc->getPropertyLimits(propID, min, max, dValue);
     }
     return false;

@@ -132,7 +132,7 @@ PlatformStream::~PlatformStream()
 
 void PlatformStream::close()
 {
-    LOG_INFO("closing stream");
+    LOG_DEBUG("closing stream");
 
     #ifdef _DEBUG
     RemoveFromRot(dwRotRegister);
@@ -206,7 +206,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 {
     if (m_isOpen)
     {
-        LOG_INFO("open() was called on an active stream.");
+        LOG_WARN("open() was called on an active stream.");
         close();
     }
 
@@ -225,7 +225,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     platformDeviceInfo *dinfo = dynamic_cast<platformDeviceInfo*>(device);
     if (dinfo == NULL)
     {
-        LOG_CRIT("Could not cast deviceInfo* to platfromDeviceInfo*!");
+        LOG_CRIT("Could not cast deviceInfo* to platformDeviceInfo*!");
         return false;
     }
 
@@ -409,13 +409,13 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                 uint32_t oldAvg = pVih->AvgTimePerFrame;
                 uint32_t oldFps = oldAvg > 0 ? (uint32_t)(10000000ULL / oldAvg) : 0;
                 pVih->AvgTimePerFrame = 10000000ULL / fps;
-                LOG_INFO("AvgTimePerFrame  {} -> {}  ({} fps -> {} fps)",
+                LOG_DEBUG("AvgTimePerFrame  {} -> {}  ({} fps -> {} fps)",
                     oldAvg, pVih->AvgTimePerFrame, oldFps, fps);
             }
 
             streamConfig->SetFormat(selectedConfig);
             _DeleteMediaType(selectedConfig);
-            LOG_INFO("Capture format set!");
+            LOG_DEBUG("Capture format set!");
         }
         else
         {
@@ -483,7 +483,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     mt.majortype	= MEDIATYPE_Video;
     if (m_rawMode) {
         mt.subtype = MEDIASUBTYPE_MJPG;
-        LOG_INFO("DirectShow: SampleGrabber media type set to MEDIASUBTYPE_MJPG (raw mode)");
+        LOG_DEBUG("DirectShow: SampleGrabber media type set to MEDIASUBTYPE_MJPG (raw mode)");
     } else {
         mt.subtype = MEDIASUBTYPE_RGB24;
     }
@@ -577,7 +577,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
             uint32_t fps_from_mt = vi->AvgTimePerFrame > 0
                 ? 10000000 / vi->AvgTimePerFrame
                 : 0;
-            LOG_INFO(
+            LOG_DEBUG(
                 "Stream config: negotiated format %dx%d %s @ %d fps (AvgTimePerFrame=%d, bitrate=%d)\n",
                 m_width, m_height,
                 fourCCToString(fc).c_str(),
@@ -624,7 +624,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     // the "MJPG doesn't stick" bug).  Our fix below re-applies the
     // format AFTER this transition, matching what the C++ PoC does.
     // =================================================================
-    LOG_INFO(
+    LOG_DEBUG(
         "Stream config: starting filter graph (camera begins streaming)\n");
     m_control->Run();
     LOG_DEBUG(
@@ -790,7 +790,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                 : 0;
             m_width = viPost->bmiHeader.biWidth;
             m_height = viPost->bmiHeader.biHeight;
-            LOG_INFO(
+            LOG_DEBUG(
                 "Stream config: final format  %dx%d @ %dfps  — ready for capture\n",
                 m_width, m_height, fpsPost);
             CoTaskMemFree(infoPost->pbFormat);
@@ -1010,45 +1010,45 @@ void PlatformStream::dumpCameraProperties()
         if (m_camControl->GetRange(CameraControl_Exposure, &mmin, &mmax,
             &delta, &defaultValue, &flags) == S_OK)
         {
-            LOG_INFO("Exposure min     : {:.3f} seconds ({} integer)", std::pow(2.0f, (float)mmin), mmin);
-            LOG_INFO("Exposure max     : {:.3f} seconds ({} integer)", std::pow(2.0f, (float)mmax), mmax);
-            LOG_INFO("Exposure step    : {} (integer)", delta);
-            LOG_INFO("Exposure default : {:.3f} seconds", pow(2.0f, (float)defaultValue));		
-            LOG_INFO("Flags            : {:08X}", flags);
+            LOG_DEBUG("Exposure min     : {:.3f} seconds ({} integer)", std::pow(2.0f, (float)mmin), mmin);
+            LOG_DEBUG("Exposure max     : {:.3f} seconds ({} integer)", std::pow(2.0f, (float)mmax), mmax);
+            LOG_DEBUG("Exposure step    : {} (integer)", delta);
+            LOG_DEBUG("Exposure default : {:.3f} seconds", pow(2.0f, (float)defaultValue));
+            LOG_DEBUG("Flags            : {:08X}", flags);
         }
         else
         {
-            LOG_INFO("Could not get exposure range information");
+            LOG_WARN("Could not get exposure range information");
         }
 
         //query focus
         if (m_camControl->GetRange(CameraControl_Focus, &mmin, &mmax,
             &delta, &defaultValue, &flags) == S_OK)
         {
-            LOG_INFO("Focus min     : {} integer", mmin);
-            LOG_INFO("Focus max     : {} integer", mmax);
-            LOG_INFO("Focus step    : {} integer", delta);
-            LOG_INFO("Focus default : {} integer", defaultValue);
-            LOG_INFO("Flags         : {:08X}", flags);
+            LOG_DEBUG("Focus min     : {} integer", mmin);
+            LOG_DEBUG("Focus max     : {} integer", mmax);
+            LOG_DEBUG("Focus step    : {} integer", delta);
+            LOG_DEBUG("Focus default : {} integer", defaultValue);
+            LOG_DEBUG("Flags         : {:08X}", flags);
         }
         else
         {
-            LOG_INFO("Could not get focus range information");
+            LOG_WARN("Could not get focus range information");
         }        
 
         // query zoom
         if (m_camControl->GetRange(CameraControl_Zoom, &mmin, &mmax,
             &delta, &defaultValue, &flags) == S_OK)
         {
-            LOG_INFO("Zoom min     : {} integer", mmin);
-            LOG_INFO("Zoom max     : {} integer", mmax);
-            LOG_INFO("Zoom step    : {} integer", delta);
-            LOG_INFO("Zoom default : {} integer", defaultValue);
-            LOG_INFO("Flags         : {:08X}", flags);
+            LOG_DEBUG("Zoom min     : {} integer", mmin);
+            LOG_DEBUG("Zoom max     : {} integer", mmax);
+            LOG_DEBUG("Zoom step    : {} integer", delta);
+            LOG_DEBUG("Zoom default : {} integer", defaultValue);
+            LOG_DEBUG("Flags         : {:08X}", flags);
         }
         else
         {
-            LOG_INFO("Could not get Zoom range information");
+            LOG_WARN("Could not get Zoom range information");
         }         
 
 #if 0

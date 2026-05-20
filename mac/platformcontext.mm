@@ -258,7 +258,7 @@ bool PlatformContext::isDeviceAvailable(CapDeviceID id)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if ([device isInUseByAnotherApplication])
     {
-        LOG_INFO( "Device {} is in use by another application",
+        LOG_WARN( "Device {} is in use by another application",
             info->m_name.c_str());
         return false;
     }
