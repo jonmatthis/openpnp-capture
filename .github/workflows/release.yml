@@ -8,9 +8,74 @@ permissions:
   contents: write
 
 jobs:
+  # ── One job to create the GitHub Release (not in the matrix) ──
+  create-release:
+    name: Create release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+    steps:
+      - name: Create GitHub Release
+        id: release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
+        with:
+          body: |
+            ## Pre-built static libraries for [openpnp-capture](https://github.com/openpnp/openpnp-capture)
+
+            This is an automated build of the [jonmatthis/openpnp-capture](https://github.com/jonmatthis/openpnp-capture)
+            fork. All credit for the underlying library belongs to the
+            [openpnp-capture project](https://github.com/openpnp/openpnp-capture) by
+            Jason von Nieda, Niels Moseley, and contributors.
+
+            ### Archives in this release
+
+            | Archive | Rust target triple |
+            |---------|-------------------|
+            | `openpnp-capture-windows-x86_64.zip` | `x86_64-pc-windows-msvc` |
+            | `openpnp-capture-windows-arm64.zip` | `aarch64-pc-windows-msvc` |
+            | `openpnp-capture-macos-x86_64.tar.gz` | `x86_64-apple-darwin` |
+            | `openpnp-capture-macos-arm64.tar.gz` | `aarch64-apple-darwin` |
+            | `openpnp-capture-linux-x86_64.tar.gz` | `x86_64-unknown-linux-gnu` |
+            | `openpnp-capture-linux-arm64.tar.gz` | `aarch64-unknown-linux-gnu` |
+
+            Each archive contains:
+
+            ```
+            lib/
+              openpnp-capture.{lib,a}
+              turbojpeg-static.{lib,a}
+            include/
+              openpnp-capture.h
+            ```
+
+            ### Consuming from a Rust build.rs
+
+            ```rust
+            const OPENPNP_BUILD: &str = "${{ github.ref_name }}";
+
+            let url = format!(
+                "https://github.com/jonmatthis/openpnp-capture/releases/download/{}/openpnp-capture-{}.{}",
+                OPENPNP_BUILD, platform, ext
+            );
+            // Download + extract, then:
+            println!("cargo:rustc-link-search=native={}/lib", extract_dir);
+            println!("cargo:rustc-link-lib=static=openpnp-capture");
+            println!("cargo:rustc-link-lib=static=turbojpeg-static");
+            ```
+
+            See the [README](https://github.com/jonmatthis/openpnp-capture#pre-built-static-libraries)
+            for a complete `build.rs` example with caching and platform detection.
+
+            ### License
+
+            MIT — same as the [parent project](https://github.com/openpnp/openpnp-capture).
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Matrix of platform builds, each uploads one archive ──
   build:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -129,64 +194,12 @@ jobs:
             cd artifact && tar -czf "../${ARCHIVE_NAME}" .
           fi
 
-      - name: Write release notes
+      - name: Upload to release
         shell: bash
         run: |
-          cat > release-body.md << 'ENDOFNOTES'
-          ## Pre-built static libraries for [openpnp-capture](https://github.com/openpnp/openpnp-capture)
-
-          This is an automated build of the [jonmatthis/openpnp-capture](https://github.com/jonmatthis/openpnp-capture)
-          fork. All credit for the underlying library belongs to the
-          [openpnp-capture project](https://github.com/openpnp/openpnp-capture) by
-          Jason von Nieda, Niels Moseley, and contributors.
-
-          ### Archives in this release
-
-          | Archive | Rust target triple |
-          |---------|-------------------|
-          | `openpnp-capture-windows-x86_64.zip` | `x86_64-pc-windows-msvc` |
-          | `openpnp-capture-windows-arm64.zip` | `aarch64-pc-windows-msvc` |
-          | `openpnp-capture-macos-x86_64.tar.gz` | `x86_64-apple-darwin` |
-          | `openpnp-capture-macos-arm64.tar.gz` | `aarch64-apple-darwin` |
-          | `openpnp-capture-linux-x86_64.tar.gz` | `x86_64-unknown-linux-gnu` |
-          | `openpnp-capture-linux-arm64.tar.gz` | `aarch64-unknown-linux-gnu` |
-
-          Each archive contains:
-
-          ```
-          lib/
-            openpnp-capture.{lib,a}
-            turbojpeg-static.{lib,a}
-          include/
-            openpnp-capture.h
-          ```
-
-          ### Consuming from a Rust build.rs
-
-          ```rust
-          const OPENPNP_BUILD: &str = "${{ github.ref_name }}";
-
-          let url = format!(
-              "https://github.com/jonmatthis/openpnp-capture/releases/download/{}/openpnp-capture-{}.{}",
-              OPENPNP_BUILD, platform, ext
-          );
-          // Download + extract, then:
-          println!("cargo:rustc-link-search=native={}/lib", extract_dir);
-          println!("cargo:rustc-link-lib=static=openpnp-capture");
-          println!("cargo:rustc-link-lib=static=turbojpeg-static");
-          ```
-
-          See the [README](https://github.com/jonmatthis/openpnp-capture#pre-built-static-libraries)
-          for a complete `build.rs` example with caching and platform detection.
-
-          ### License
-
-          MIT — same as the [parent project](https://github.com/openpnp/openpnp-capture).
-          ENDOFNOTES
-
-      - name: Upload to release
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
-        with:
-          files: openpnp-capture-${{ matrix.target }}.${{ matrix.archive-ext }}
-          body_path: release-body.md
-          token: ${{ secrets.GITHUB_TOKEN }}
+          gh release upload "${{ github.ref_name }}" \
+            "openpnp-capture-${{ matrix.target }}.${{ matrix.archive-ext }}" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
