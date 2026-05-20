@@ -10,7 +10,7 @@
 # Author: Niels A. Moseley, Jason von Nieda
 #
 
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 project (openpnp-capture)
 set(OPENPNP_CAPTURE_LIB_VERSION "0.0.28" CACHE STRING "openpnp-capture library version")
 set(OPENPNP_CAPTURE_LIB_SOVERSION "0" CACHE STRING "openpnp-capture library soversion")
@@ -20,6 +20,54 @@ option(BUILD_SHARED_LIBS "Build shared library" ON)
 option(BUILD_STATIC_LIBS "Build static library" OFF)
 option(LINK_DYNAMIC_MSVC_RUNTIME "Link MSVC runtime statically" OFF)
 option(WITH_SIMD_LIBJPEG "Enable SIMD optimizations in libjpeg-turbo (disable for ARM64 Windows cross-compilation)" ON)
+
+# -------------------------------------------------------------------
+# spdlog — fast, header-only C++ logging library
+# -------------------------------------------------------------------
+include(FetchContent)
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        v1.15.2
+)
+option(SPDLOG_BUILD_SHARED "Build spdlog shared" OFF)
+if(MSVC)
+    # Force spdlog to use the same MSVC runtime as openpnp-capture.
+    # Without this, spdlog defaults to /MD while we use /MT, causing
+    # LNK2038 (RuntimeLibrary mismatch) when linking test executables.
+    if(LINK_DYNAMIC_MSVC_RUNTIME)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL" CACHE STRING "" FORCE)
+    else()
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "" FORCE)
+    endif()
+endif()
+FetchContent_MakeAvailable(spdlog)
+
+# -------------------------------------------------------------------
+# log compile level — controls SPDLOG_ACTIVE_LEVEL
+# Levels below this are compiled out (zero cost).
+# Override: cmake -DLOG_ACTIVE_LEVEL=trace|debug|info|warn|error
+# -------------------------------------------------------------------
+set(LOG_ACTIVE_LEVEL "trace" CACHE STRING "Minimum compiled-in log level")
+set_property(CACHE LOG_ACTIVE_LEVEL PROPERTY STRINGS trace debug info warn error)
+
+# map human-readable to spdlog integer constants
+if(LOG_ACTIVE_LEVEL STREQUAL "trace")
+    set(SPDLOG_ACTIVE_LEVEL_DEFINE "SPDLOG_LEVEL_TRACE")
+elseif(LOG_ACTIVE_LEVEL STREQUAL "debug")
+    set(SPDLOG_ACTIVE_LEVEL_DEFINE "SPDLOG_LEVEL_DEBUG")
+elseif(LOG_ACTIVE_LEVEL STREQUAL "info")
+    set(SPDLOG_ACTIVE_LEVEL_DEFINE "SPDLOG_LEVEL_INFO")
+elseif(LOG_ACTIVE_LEVEL STREQUAL "warn")
+    set(SPDLOG_ACTIVE_LEVEL_DEFINE "SPDLOG_LEVEL_WARN")
+elseif(LOG_ACTIVE_LEVEL STREQUAL "error")
+    set(SPDLOG_ACTIVE_LEVEL_DEFINE "SPDLOG_LEVEL_ERROR")
+else()
+    message(WARNING "Unknown LOG_ACTIVE_LEVEL '${LOG_ACTIVE_LEVEL}', defaulting to trace")
+    set(SPDLOG_ACTIVE_LEVEL_DEFINE "SPDLOG_LEVEL_TRACE")
+endif()
+
+message(STATUS "Log active level: ${LOG_ACTIVE_LEVEL} (SPDLOG_ACTIVE_LEVEL=${SPDLOG_ACTIVE_LEVEL_DEFINE})")
 
 # Validate library type options
 if(BUILD_STATIC_LIBS AND BUILD_SHARED_LIBS)
@@ -99,6 +147,7 @@ endif()
 add_library(openpnp-capture ${LIBRARY_TYPE} common/libmain.cpp
                                            common/context.cpp
                                            common/logging.cpp
+                                           common/logging_v2.cpp
                                            common/stream.cpp
                                            common/mjpeghelper.cpp)
 
@@ -110,6 +159,13 @@ target_include_directories(openpnp-capture PUBLIC
 set_target_properties(openpnp-capture PROPERTIES
                       VERSION ${OPENPNP_CAPTURE_LIB_VERSION}
                       SOVERSION ${OPENPNP_CAPTURE_LIB_SOVERSION})
+
+# compile-time log level stripping (spdlog)
+target_compile_definitions(openpnp-capture PRIVATE
+    SPDLOG_ACTIVE_LEVEL=${SPDLOG_ACTIVE_LEVEL_DEFINE}
+)
+
+target_link_libraries(openpnp-capture PRIVATE spdlog::spdlog_header_only)
 
 # ======== libjpeg-turbo setup for ALL platforms ========
 find_package(PkgConfig QUIET)

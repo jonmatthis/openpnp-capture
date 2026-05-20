@@ -13,29 +13,17 @@
 cmake_minimum_required(VERSION 3.0)
 project (openpnp-capture-test)
 
-set (SOURCE main.cpp ../../common/logging.cpp)
+add_executable(openpnp-capture-test main.cpp)
 
-add_executable(openpnp-capture-test ${SOURCE})
+add_executable(openpnp-capture-raw-test raw_test.cpp)
 
-set (RAW_SOURCE raw_test.cpp ../../common/logging.cpp)
+add_executable(openpnp-capture-jpeg-decode-bench jpeg_decode_bench.cpp)
 
-add_executable(openpnp-capture-raw-test ${RAW_SOURCE})
+add_executable(diagnostic_settings diagnostic_settings.cpp)
 
-set (JPEG_DECODE_BENCH_SOURCE jpeg_decode_bench.cpp)
+add_executable(availability_test availability_test.cpp)
 
-add_executable(openpnp-capture-jpeg-decode-bench ${JPEG_DECODE_BENCH_SOURCE})
-
-set (DIAGNOSTIC_SOURCE diagnostic_settings.cpp ../../common/logging.cpp)
-
-add_executable(diagnostic_settings ${DIAGNOSTIC_SOURCE})
-
-set (AVAILABILITY_SOURCE availability_test.cpp ../../common/logging.cpp)
-
-add_executable(availability_test ${AVAILABILITY_SOURCE})
-
-set (INUSE_SOURCE inuse_test.cpp ../../common/logging.cpp)
-
-add_executable(inuse_test ${INUSE_SOURCE})
+add_executable(inuse_test inuse_test.cpp)
 
 target_link_libraries(openpnp-capture-test openpnp-capture)
 target_link_libraries(openpnp-capture-raw-test openpnp-capture)

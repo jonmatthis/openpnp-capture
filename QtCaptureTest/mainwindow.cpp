@@ -1,7 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QDebug>
-#include <QBoxLayout>
+#include <QBoxLayout>/clear
 #include <QPixmap>
 
 struct CustomComboBoxData

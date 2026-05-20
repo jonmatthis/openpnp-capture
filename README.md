@@ -257,11 +257,12 @@ if (s >= 0) {
 
 # Building OpenPnP Capture
 ## Dependencies
-* CMAKE 3.1 or better
+* CMAKE 3.14 or better (for FetchContent)
 * MAKE (osx, linux)
 * Visual Studio 2013 + NMake or Ninja Build (windows)
 * NASM for building libjpeg-turbo (linux)
 * libgtk-3-dev (linux, test program)
+* **spdlog** — automatically fetched via CMake FetchContent; network access required on first configure (cached after). Uses header-only mode (no compiled spdlog library linked).
 
 ## Build instructions (Windows)
 Run the batch file 'bootstrap.bat' and choose the desired build system (VisualStudio/nmake or Ninja). Make sure the compiler (Visual Studio) is in the search path. 
@@ -274,6 +275,51 @@ Run 'bootstrap_osx.sh'. Run make.
 ## Build instructions (Linux)
 Run 'bootstrap_linux.sh'. Run make.
 
+
+# Logging
+
+openpnp-capture uses [spdlog](https://github.com/gabime/spdlog) for structured, zero-cost logging. Two logging APIs coexist:
+
+| Header | Style | Cost | When to use |
+|--------|-------|------|-------------|
+| `common/logging.h` | printf-style `LOG(LEVEL, fmt, ...)` | Runtime filter | Legacy code, backward compat |
+| `common/logging_v2.h` | `LOG_TRACE/DEBUG/INFO/WARN/ERROR(...)` with `{}` formatting | Zero-cost (compile-time strip) | New code, hot paths |
+
+## Levels (new API)
+
+| Macro | Level | Typical use |
+|-------|-------|-------------|
+| `LOG_TRACE(...)` | 0 | Per-frame loop logs, warmup loops |
+| `LOG_DEBUG(...)` | 1 | Under-the-hood details, observability |
+| `LOG_INFO(...)` | 2 | Standard info users want every run |
+| `LOG_WARN(...)` | 3 | Something weird but not an error |
+| `LOG_ERROR(...)` | 4 | Something went wrong |
+
+## Structured formatting
+
+Uses fmtlib `{}` syntax — no more printf format specifier bugs:
+
+```cpp
+LOG_INFO("stream opened: device={} {}x{} format={}", device_id, width, height, fourcc);
+LOG_WARN("frame buffer mismatch: got={} expected={} frame={}", bytes, wantSize, m_frames);
+```
+
+## Compile-time level stripping
+
+`LOG_TRACE` and `LOG_DEBUG` calls in frame loops become `((void)0)` — literally nothing — when compiled out. No branch, no format string evaluation, no argument processing. Zero runtime cost.
+
+Control via CMake:
+
+```
+cmake -DLOG_ACTIVE_LEVEL=info ...    # strip TRACE + DEBUG
+cmake -DLOG_ACTIVE_LEVEL=trace ...   # compile everything in (default in Debug builds)
+```
+
+The `LOG_ACTIVE_LEVEL` CMake option maps to `SPDLOG_ACTIVE_LEVEL` via `target_compile_definitions`. Levels: `trace`, `debug`, `info`, `warn`, `error` (in increasing order of stripping).
+
+## Custom log callback (public C API)
+
+The existing `Cap_installCustomLogFunction()` / `Cap_setLogLevel()` API still works. Log messages are routed through spdlog internally and forwarded to the user-installed callback alongside stderr output. Timestamps, thread IDs, and log levels are included in the output automatically.
 
 # Supporting Other Platforms
 * Implement all PlatformXXX classes, like in the win or linux directories.

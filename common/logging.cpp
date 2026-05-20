@@ -1,6 +1,12 @@
 /*
-
     Logging subsystem for OpenPnP Capture library.
+
+    Backward-compatible printf-style API.  All calls delegate to the
+    spdlog backend in logging_v2.cpp so that every message gets
+    timestamps, thread IDs, colour output, and the custom-callback sink.
+
+    New code should use logging_v2.h macros (zero-cost when compiled out)
+    rather than this header.
 
     Copyright (c) 2017 Jason von Nieda, Niels Moseley.
 
@@ -25,7 +31,18 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <spdlog/spdlog.h>
 #include "logging.h"
+
+// forward-declare openpnp bridge functions (logging_v2.cpp) — we cannot
+// include logging_v2.h here because its LOG_INFO/LOG_DEBUG macros would
+// collide with the legacy #define constants in logging.h
+namespace openpnp {
+std::shared_ptr<spdlog::logger> getLogger();
+void setLogCallback(customLogFunc func);
+void setLogLevel(uint32_t level);
+uint32_t getLogLevel();
+}
 
 /* In their infinite "wisdom" Microsoft have declared snprintf is deprecated
    and we must therefore resort to a macro to fix something that shouldn't
@@ -34,74 +51,62 @@
 #define snprintf _snprintf
 #endif
 
-static uint32_t gs_logLevel = LOG_NOTICE;
-static customLogFunc gs_logFunc = NULL;
+static customLogFunc gs_logFunc = nullptr;
+
+// ---------------------------------------------------------------------------
+// legacy level constants → spdlog level enum
+// ---------------------------------------------------------------------------
+static spdlog::level::level_enum oldLevelToSpdlog(uint32_t logLevel)
+{
+    switch (logLevel) {
+        case LOG_EMERG:  case LOG_ALERT:  case LOG_CRIT:
+            return spdlog::level::critical;
+        case LOG_ERR:     return spdlog::level::err;
+        case LOG_WARNING: return spdlog::level::warn;
+        case LOG_NOTICE:  case LOG_INFO:
+            return spdlog::level::info;
+        case LOG_DEBUG:   return spdlog::level::debug;
+        case LOG_VERBOSE:
+        default:          return spdlog::level::trace;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// public API
+// ---------------------------------------------------------------------------
 
 void installCustomLogFunction(customLogFunc logfunc)
 {
     gs_logFunc = logfunc;
+    openpnp::setLogCallback(logfunc);
 }
 
 void LOG(uint32_t logLevel, const char *format, ...)
 {
-    if (logLevel > gs_logLevel)
-    {
+    auto logger = openpnp::getLogger();
+    auto spdLevel = oldLevelToSpdlog(logLevel);
+
+    // cheap gate — skip the vsnprintf if this level isn't active
+    if (!logger->should_log(spdLevel)) {
         return;
     }
 
-    char logbuffer[1024];
-    char *ptr = logbuffer;
-
-    switch(logLevel)
-    {
-    case LOG_CRIT:
-        snprintf(logbuffer,1024,"[CRIT] ");
-        ptr += 7;
-        break;        
-    case LOG_ERR:
-        snprintf(logbuffer,1024,"[ERR ] ");
-        ptr += 7;
-        break;
-    case LOG_INFO:
-        snprintf(logbuffer,1024,"[INFO] ");
-        ptr += 7;
-        break;    
-    case LOG_DEBUG:
-        snprintf(logbuffer,1024,"[DBG ] ");
-        ptr += 7;
-        break;
-    case LOG_VERBOSE:
-        snprintf(logbuffer,1024,"[VERB] ");
-        ptr += 7;
-        break;
-    default:
-        break;
-    }
-    
+    char msgbuf[1024];
     va_list args;
-
     va_start(args, format);
-    vsnprintf(ptr, 1024-7, format, args);
+    vsnprintf(msgbuf, sizeof(msgbuf), format, args);
     va_end(args);
 
-    if (gs_logFunc != nullptr)
-    {
-        // custom log functions to no include the 
-        // prefix.
-        gs_logFunc(logLevel, ptr);
-    }
-    else
-    {
-        fprintf(stderr, "%s", logbuffer);
-    }
+    // route through spdlog for consistent formatting + callback sink
+    logger->log(spdLevel, "{}", msgbuf);
 }
 
 void setLogLevel(uint32_t logLevel)
 {
-    gs_logLevel = logLevel;
+    openpnp::setLogLevel(logLevel);
 }
 
 uint32_t getLogLevel()
 {
-    return gs_logLevel;
+    return openpnp::getLogLevel();
 }

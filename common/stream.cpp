@@ -1,5 +1,4 @@
 /*
-
     OpenPnp-Capture: a video capture subsystem.
 
     Platform independent stream code
@@ -23,13 +22,12 @@
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
-    
 */
 
 #include <memory.h> // for memcpy
 #include "stream.h"
 #include "context.h"
-
+#include "logging_v2.h"
 
 // **********************************************************************
 //   Stream
@@ -47,7 +45,7 @@ Stream::Stream() :
 
 Stream::~Stream()
 {
-    LOG(LOG_DEBUG,"Stream::~Stream reports %d frames captured.\n", m_frames);
+    LOG_DEBUG("stream dtor: total_frames_captured={}", m_frames);
     //Note: close() should be called/handled by the PlatformStream!
 }
 
@@ -62,12 +60,12 @@ bool Stream::hasNewFrame()
 bool Stream::captureFrame(uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes)
 {
     if (m_rawMode) {
-        LOG(LOG_ERR, "captureFrame called on raw-mode stream. Use captureFrameRaw or decodeFrame.\n");
+        LOG_ERROR("captureFrame called on raw-mode stream — use captureFrameRaw or decodeFrame");
         return false;
     }
     if (!m_isOpen) return false;
 
-    m_bufferMutex.lock();    
+    m_bufferMutex.lock();
     size_t maxBytes = RGBbufferBytes <= m_frameBuffer.size() ? RGBbufferBytes : m_frameBuffer.size();
     if (maxBytes != 0)
     {
@@ -80,32 +78,29 @@ bool Stream::captureFrame(uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes)
 
 void Stream::submitBuffer(const uint8_t *ptr, size_t bytes)
 {
-    // sanity check
     if (ptr == nullptr)
     {
         return;
     }
-    
+
     m_bufferMutex.lock();
-    
+
     if (m_frameBuffer.size() == 0)
     {
-        LOG(LOG_ERR,"Stream::m_frameBuffer size is 0 - cant store frame buffers!\n");
+        LOG_ERROR("frame buffer size is 0 — can't store frames");
     }
 
-    // Generate warning every 100 frames if the frame buffer is not
-    // the expected size. 
-    
-    const uint32_t wantSize = m_width*m_height*3;
+    const uint32_t wantSize = m_width * m_height * 3;
     if ((bytes != wantSize) && ((m_frames % 100) == 0))
     {
-        LOG(LOG_WARNING, "Warning: captureFrame received incorrect buffer size (got %d want %d)\n", bytes, wantSize);
+        LOG_WARN("frame buffer size mismatch: got={} expected={} (frame #{})",
+                 bytes, wantSize, m_frames);
     }
 
     if (m_frameBuffer.size() >= bytes)
     {
         memcpy(&m_frameBuffer[0], ptr, bytes);
-        m_newFrame = true; 
+        m_newFrame = true;
         m_frames++;
     }
     m_bufferMutex.unlock();
@@ -117,14 +112,10 @@ void Stream::submitRawBuffer(const uint8_t *ptr, size_t bytes)
 
     m_bufferMutex.lock();
 
-    // grow buffer with 2x headroom if needed
     if (bytes > m_rawBuffer.size()) {
         size_t newSize = bytes * 2;
-        LOG(LOG_WARNING,
-            "Raw buffer growing: frame %u bytes exceeds capacity %u, resizing to %u\n",
-            static_cast<uint32_t>(bytes),
-            static_cast<uint32_t>(m_rawBuffer.size()),
-            static_cast<uint32_t>(newSize));
+        LOG_WARN("raw buffer resize: frame_bytes={} capacity={} new_capacity={}",
+                 bytes, m_rawBuffer.size(), newSize);
         m_rawBuffer.resize(newSize);
     }
 
@@ -134,12 +125,10 @@ void Stream::submitRawBuffer(const uint8_t *ptr, size_t bytes)
     m_frames++;
 
     if (m_frames == 1) {
-        LOG(LOG_INFO,
-            "Raw buffer: first frame received, %u bytes (capacity %u)\n",
-            static_cast<uint32_t>(bytes),
-            static_cast<uint32_t>(m_rawBuffer.size()));
+        LOG_INFO("raw buffer: first frame received: bytes={} capacity={}",
+                 bytes, m_rawBuffer.size());
     }
-    LOG(LOG_DEBUG, "Raw frame #%u stored: %u bytes\n", m_frames, static_cast<uint32_t>(bytes));
+    LOG_TRACE("raw frame stored: frame=#{} bytes={}", m_frames, bytes);
 
     m_bufferMutex.unlock();
 }
@@ -148,7 +137,7 @@ bool Stream::captureFrameRaw(uint8_t *outPtr, uint32_t outBytes, uint32_t *actua
 {
     if (!m_isOpen) return false;
     if (!m_rawMode) {
-        LOG(LOG_ERR, "captureFrameRaw called on non-raw stream\n");
+        LOG_ERROR("captureFrameRaw called on non-raw stream");
         return false;
     }
     if (actualBytes == nullptr || outPtr == nullptr) {
@@ -159,16 +148,15 @@ bool Stream::captureFrameRaw(uint8_t *outPtr, uint32_t outBytes, uint32_t *actua
     *actualBytes = m_rawFrameSize;
 
     if (outBytes < m_rawFrameSize) {
-        LOG(LOG_WARNING,
-            "captureFrameRaw: caller buffer too small (%u < %u needed)\n",
-            outBytes, m_rawFrameSize);
+        LOG_WARN("captureFrameRaw: caller buffer too small: got={} need={}",
+                 outBytes, m_rawFrameSize);
         m_bufferMutex.unlock();
         return false;
     }
 
     memcpy(outPtr, &m_rawBuffer[0], m_rawFrameSize);
     m_newFrame = false;
-    LOG(LOG_DEBUG, "captureFrameRaw: delivering %u bytes to caller\n", m_rawFrameSize);
+    LOG_DEBUG("captureFrameRaw: delivering bytes={} to caller", m_rawFrameSize);
     m_bufferMutex.unlock();
     return true;
 }
@@ -189,36 +177,34 @@ bool Stream::decodeFrame(uint8_t *RGBbufferPtr, uint32_t RGBbufferBytes)
 {
     if (!m_isOpen) return false;
     if (!m_rawMode) {
-        LOG(LOG_ERR, "decodeFrame called on non-raw stream\n");
+        LOG_ERROR("decodeFrame called on non-raw stream");
         return false;
     }
     if (RGBbufferPtr == nullptr) return false;
 
     uint32_t needed = m_width * m_height * 3;
     if (RGBbufferBytes < needed) {
-        LOG(LOG_WARNING,
-            "decodeFrame: RGB buffer too small (%u < %u needed)\n",
-            RGBbufferBytes, needed);
+        LOG_WARN("decodeFrame: RGB buffer too small: got={} need={}",
+                 RGBbufferBytes, needed);
         return false;
     }
 
     m_bufferMutex.lock();
     if (m_rawFrameSize == 0) {
-        LOG(LOG_ERR, "decodeFrame: no raw frame available yet\n");
+        LOG_ERROR("decodeFrame: no raw frame available yet");
         m_bufferMutex.unlock();
         return false;
     }
 
-    LOG(LOG_INFO,
-        "decodeFrame: decompressing %u JPEG bytes -> %ux%u RGB\n",
-        m_rawFrameSize, m_width, m_height);
+    LOG_INFO("decodeFrame: decompressing: jpeg_bytes={} rgb={}x{}",
+             m_rawFrameSize, m_width, m_height);
 
     bool ok = m_mjpegHelper.decompressFrame(
         &m_rawBuffer[0], m_rawFrameSize,
         RGBbufferPtr, m_width, m_height);
 
     if (!ok) {
-        LOG(LOG_ERR, "decodeFrame: libjpeg-turbo failed on %u byte frame\n", m_rawFrameSize);
+        LOG_ERROR("decodeFrame: libjpeg-turbo decompress failed: frame_size={}", m_rawFrameSize);
     }
 
     m_bufferMutex.unlock();
