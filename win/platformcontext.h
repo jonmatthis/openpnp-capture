@@ -74,19 +74,13 @@ protected:
     /** Check if a DirectShow device is available (can be bound) */
     virtual bool isDeviceAvailable(CapDeviceID id) override;
 
-    /** Convert a wide character string to an UTF-8 string 
-        
-        Implement this function in a platform-dependent
-        derived class.    
-    */
-    virtual std::string wstringToString(const std::wstring &wstr);
+public:
 
-    /** Convert a wide charater string to an UTF-8 string
-        
-        Implement this function in a platform-dependent
-        derived class.    
-    */
-    virtual std::string wcharPtrToString(const wchar_t *str);
+    /** Convert a wide character string to an UTF-8 string */
+    static std::string wstringToString(const std::wstring &wstr);
+
+    /** Convert a wide character string to an UTF-8 string */
+    static std::string wcharPtrToString(const wchar_t *str);
 
 };
 

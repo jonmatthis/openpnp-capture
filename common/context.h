@@ -206,6 +206,22 @@ public:
     */
     virtual bool isDeviceAvailable(CapDeviceID id) = 0;
 
+    /** Perform an invasive probe: open the device, wait for a frame, close it.
+
+        This is the definitive way to determine if a camera can actually deliver
+        frames. It opens a stream via openStream(), polls hasNewFrame() until a
+        frame arrives or timeoutMs elapses, then closes the stream.
+
+        Platform-independent — delegates to openStream() / closeStream() /
+        hasNewFrame(), which are already implemented per-platform.
+
+        @param id        the device index.
+        @param formatID  the format to test with (0 = first available).
+        @param timeoutMs max wait for the first frame (0 = default 2000ms).
+        @return true if opened and at least one frame arrived.
+    */
+    bool probeDevice(CapDeviceID id, CapFormatID formatID, uint32_t timeoutMs);
+
     /** Refresh the device list to reflect currently attached/removed cameras.
         After this call, Cap_getDeviceCount() will reflect the current system state.
         Open streams are NOT affected.

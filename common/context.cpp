@@ -26,6 +26,8 @@
 */
 
 #include <vector>
+#include <chrono>
+#include <thread>
 #include "context.h"
 #include "logging.h"
 #include "stream.h"
@@ -492,6 +494,40 @@ bool Context::isDeviceStillConnected(int32_t streamID)
     }
 
     return stream->isDeviceConnected();
+}
+
+bool Context::probeDevice(CapDeviceID id, CapFormatID formatID, uint32_t timeoutMs)
+{
+    if (timeoutMs == 0) timeoutMs = 2000;
+
+    int32_t streamID = openStream(id, formatID);
+    if (streamID < 0) {
+        LOG_DEBUG("probeDevice: openStream failed for device {}", id);
+        return false;
+    }
+
+    LOG_DEBUG("probeDevice: opened device {}, waiting for frame (timeout={}ms)", id, timeoutMs);
+
+    uint32_t waited = 0;
+    const uint32_t pollInterval = 50;
+    bool gotFrame = false;
+    while (waited < timeoutMs) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(pollInterval));
+        waited += pollInterval;
+        if (hasNewFrame(streamID)) {
+            gotFrame = true;
+            break;
+        }
+    }
+
+    if (gotFrame) {
+        LOG_DEBUG("probeDevice: device {} delivered frame after {}ms", id, waited);
+    } else {
+        LOG_DEBUG("probeDevice: device {} produced no frame within {}ms", id, timeoutMs);
+    }
+
+    closeStream(streamID);
+    return gotFrame;
 }
 
 /** convert a FOURCC uint32_t to human readable form */

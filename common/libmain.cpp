@@ -120,6 +120,33 @@ DLLPUBLIC CapResult Cap_isDeviceAvailable(CapContext ctx, CapDeviceID index)
     return CAPRESULT_ERR;
 }
 
+DLLPUBLIC CapResult Cap_probeDevice(CapContext ctx, CapDeviceID index,
+    CapFormatID formatID, uint32_t timeoutMs)
+{
+    if (ctx != 0)
+    {
+        Context *c = reinterpret_cast<Context*>(ctx);
+        if (index >= c->getDeviceCount())
+        {
+            return CAPRESULT_DEVICENOTFOUND;
+        }
+        return c->probeDevice(index, formatID, timeoutMs) ? CAPRESULT_OK : CAPRESULT_ERR;
+    }
+    return CAPRESULT_ERR;
+}
+
+DLLPUBLIC CapResult Cap_verifyDevice(CapContext ctx, CapDeviceID index,
+    CapFormatID formatID, uint32_t timeoutMs)
+{
+    // Tier 1: fast non-invasive probe — skip invasive if device isn't even visible
+    CapResult fast = Cap_isDeviceAvailable(ctx, index);
+    if (fast != CAPRESULT_OK) {
+        return fast;  // passes through DEVICENOTFOUND or ERR
+    }
+    // Tier 2: definitive invasive check
+    return Cap_probeDevice(ctx, index, formatID, timeoutMs);
+}
+
 DLLPUBLIC CapResult Cap_refreshDevices(CapContext ctx)
 {
     if (ctx != 0)

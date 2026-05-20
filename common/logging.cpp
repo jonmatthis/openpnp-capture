@@ -145,15 +145,15 @@ void openpnp::setLogLevel(uint32_t level) {
     auto logger = getLogger();
     spdlog::level::level_enum lvl;
     switch (level) {
-        case LOG_EMERG:  case LOG_ALERT:  case LOG_CRIT:
+        case LOG_EMERG:  case LOG_ALERT:  case LOG_CRIT_VAL:
             lvl = spdlog::level::critical;  break;
         case LOG_ERR:
             lvl = spdlog::level::err;       break;
         case LOG_WARNING:
             lvl = spdlog::level::warn;      break;
-        case LOG_NOTICE: case LOG_INFO:
+        case LOG_NOTICE: case LOG_INFO_VAL:
             lvl = spdlog::level::info;      break;
-        case LOG_DEBUG:
+        case LOG_DEBUG_VAL:
             lvl = spdlog::level::debug;     break;
         case LOG_VERBOSE:
         default:
@@ -165,11 +165,11 @@ void openpnp::setLogLevel(uint32_t level) {
 uint32_t openpnp::getLogLevel() {
     auto logger = getLogger();
     switch (logger->level()) {
-        case spdlog::level::critical:  return LOG_CRIT;
+        case spdlog::level::critical:  return LOG_CRIT_VAL;
         case spdlog::level::err:       return LOG_ERR;
         case spdlog::level::warn:      return LOG_WARNING;
-        case spdlog::level::info:      return LOG_INFO;
-        case spdlog::level::debug:     return LOG_DEBUG;
+        case spdlog::level::info:      return LOG_INFO_VAL;
+        case spdlog::level::debug:     return LOG_DEBUG_VAL;
         case spdlog::level::trace:
         default:                       return LOG_VERBOSE;
     }

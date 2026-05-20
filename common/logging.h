@@ -89,6 +89,15 @@ void installCustomLogFunction(customLogFunc logfunc);
 // When a level is compiled out (e.g. TRACE in a release build), the entire
 // call disappears — no argument evaluation, no branch, no codegen.
 // ---------------------------------------------------------------------------
+
+// The convenience macros below redefine LOG_DEBUG, LOG_INFO, and LOG_CRIT
+// from integer constants into function-style spdlog macros.  Code that needs
+// the original integer values (e.g. switch cases in logging.cpp) should use
+// these aliases — they are NOT overwritten by the macros below.
+#define LOG_CRIT_VAL  2
+#define LOG_INFO_VAL  6
+#define LOG_DEBUG_VAL 7
+
 #define LOG_TRACE(...)    SPDLOG_TRACE(__VA_ARGS__)
 
 // LOG_DEBUG and LOG_INFO were originally defined as integer constants above
@@ -106,7 +115,19 @@ void installCustomLogFunction(customLogFunc logfunc);
 
 #define LOG_WARN(...)     SPDLOG_WARN(__VA_ARGS__)
 #define LOG_ERROR(...)    SPDLOG_ERROR(__VA_ARGS__)
+
+// LOG_CRIT, LOG_DEBUG, LOG_INFO were defined as integer constants above (2, 7, 6).
+// They are redefined here as function-style spdlog macros. The bare-name constant
+// form still works for Cap_setLogLevel(LOG_DEBUG) via the log-level-value aliases
+// like LOG_CRIT_VAL (see definitions just below).
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4005) // macro redefinition
+#endif
 #define LOG_CRIT(...)     SPDLOG_CRITICAL(__VA_ARGS__)
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 // ---------------------------------------------------------------------------
 // logger instance access

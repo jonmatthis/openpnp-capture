@@ -264,7 +264,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = FindCaptureDevice(&m_sourceFilter, dinfo->m_devicePath.c_str());
     if (hr != S_OK)
     {
-        LOG_ERROR("Could not find source filter {}", dinfo->m_devicePath.c_str());
+        LOG_ERROR("Could not find source filter {}", PlatformContext::wstringToString(dinfo->m_devicePath).c_str());
         return false;
     }
 

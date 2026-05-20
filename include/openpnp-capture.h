@@ -191,31 +191,89 @@ DLLPUBLIC CapResult Cap_getFormatInfo(CapContext ctx, CapDeviceID index, CapForm
 
 /** Check whether a camera device is likely available for use.
 
-    This is a LIGHTWEIGHT probe — it does NOT power on the sensor, turn on
-    the camera LED, or capture any frames.  It performs the cheapest possible
-    platform-specific check:
+    FAST, NON-INVASIVE PROBE. Does NOT power on the sensor, turn on the
+    camera LED, or capture any frames. Runs in ~1ms per device.
 
+    Platform-specific checks:
       - Linux:   opens /dev/videoN, checks for EBUSY, closes immediately.
       - macOS:   reads AVCaptureDevice.isInUseByAnotherApplication.
       - Windows: re-enumerates DirectShow and verifies the device filter
                  can be bound with a capture/preview pin present.
 
-    LIMITATIONS: On Windows, DirectShow devices are shareable by default,
-    so binding the filter may succeed even when another process (that uses
-    DirectShow) is actively streaming.  Exclusive-mode apps (e.g. Windows
-    Camera via WinRT) may NOT be detected by this probe.  For a definitive
-    check, attempt Cap_openStream() — if that succeeds, the device is truly
-    available to this library.
+    WHEN TO USE: Batch-scan many cameras quickly to find candidates.
+    Use this as a "definitely NOT available" filter — if it returns
+    CAPRESULT_ERR, don't bother with the expensive probe.
+
+    WHEN NOT TO USE: Do NOT rely on this alone for a definitive answer.
+    CAPRESULT_OK does NOT guarantee the device can deliver frames.
+    On Windows especially, DirectShow devices are shareable by default,
+    so another app may already be streaming from the same camera.
+
+    For a definitive check, use Cap_probeDevice() (invasive probe) or
+    Cap_verifyDevice() (fast probe + invasive, one call).
 
     @param ctx The ID of the context.
     @param index The device index of the capture device.
-    @return CAPRESULT_OK if the device appears available,
+    @return CAPRESULT_OK if the device appears available (NOT definitive),
             CAPRESULT_ERR if the device cannot be probed (any reason:
             exclusive lock, missing device, virtual device with no
             DirectShow path, driver error, etc.),
             CAPRESULT_DEVICENOTFOUND if the index is out of range.
 */
 DLLPUBLIC CapResult Cap_isDeviceAvailable(CapContext ctx, CapDeviceID index);
+
+/** Perform an invasive probe: open the device, wait for a frame, close it.
+
+    DEFINITIVE AVAILABILITY CHECK. This ACTUALLY OPENS a stream, waits for
+    at least one frame to arrive, and closes the stream. This is the only
+    reliable way to determine if a camera can deliver frames.
+
+    SIDE EFFECTS: Powers on the sensor, may flash the camera LED, and holds
+    the device exclusively for up to timeoutMs. Callers should warn users or
+    only call this during initial setup / configuration screens.
+
+    This takes ~500ms+ per camera. For scanning many cameras efficiently,
+    first use Cap_isDeviceAvailable() to narrow candidates, then call
+    Cap_probeDevice() only on likely-free devices. Or use Cap_verifyDevice()
+    to run both checks in a single call.
+
+    @param ctx       The ID of the context.
+    @param index     The device index of the capture device.
+    @param formatID  The format to test with (0 = first available format).
+    @param timeoutMs Maximum time to wait for a frame (0 = default 2000ms).
+    @return CAPRESULT_OK if the device was opened and at least one frame
+            arrived (the device is truly available),
+            CAPRESULT_ERR if the device cannot be opened or produces no
+            frames within the timeout,
+            CAPRESULT_DEVICENOTFOUND if the index is out of range.
+*/
+DLLPUBLIC CapResult Cap_probeDevice(CapContext ctx, CapDeviceID index,
+    CapFormatID formatID, uint32_t timeoutMs);
+
+/** Convenience: run the fast probe AND the invasive probe in one call.
+
+    Chains Cap_isDeviceAvailable() + Cap_probeDevice(). Returns a definitive
+    result — a camera that passes this check can actually be opened and will
+    deliver frames.
+
+    This is the function most consumers should use when they want a simple
+    "is this camera actually usable?" answer. No need to understand the
+    two-tier architecture or call multiple functions.
+
+    SIDE EFFECTS: Same as Cap_probeDevice — powers on the sensor, may flash
+    the camera LED. Takes ~500ms+ per device.
+
+    @param ctx       The ID of the context.
+    @param index     The device index of the capture device.
+    @param formatID  The format to test with (0 = first available format).
+    @param timeoutMs Maximum time to wait for a frame (0 = default 2000ms).
+    @return CAPRESULT_OK if the device can deliver frames,
+            CAPRESULT_ERR if the device fails either the fast or invasive
+            check,
+            CAPRESULT_DEVICENOTFOUND if the index is out of range.
+*/
+DLLPUBLIC CapResult Cap_verifyDevice(CapContext ctx, CapDeviceID index,
+    CapFormatID formatID, uint32_t timeoutMs);
 
 /** Refresh the device list to reflect currently attached/removed cameras.
     After this call, Cap_getDeviceCount() will reflect the current system state.

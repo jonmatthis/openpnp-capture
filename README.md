@@ -143,21 +143,58 @@ The library automatically configures the correct OS-level pipeline based on `Cap
 
 # Device Availability & Re-enumeration
 
-Three new API functions provide camera availability probing and runtime device list refresh.
+Five API functions cover the full range of camera detection needs — from fast
+enumeration to definitive invasive probing.
+
+## The three-tier API
+
+| Function | Tier | What it does | Time | Side effects | Definitive? |
+|---|---|---|---|---|---|
+| `Cap_isDeviceAvailable` | Fast probe | Checks device existence / basic accessibility without powering on the sensor | ~1ms | None | **No** — lies on Windows |
+| `Cap_refreshDevices` | Re-enumeration | Rebinds the platform device list (hotplug) | ~10ms | None | N/A |
+| `Cap_isDeviceStillConnected` | Disconnect poll | Checks if an already-open stream's device is still plugged in | ~1ms | None | N/A (needs stream) |
+| `Cap_probeDevice` | Invasive probe | Opens stream, waits for a frame, closes | ~500ms+ | LED flash, sensor on | **Yes** |
+| `Cap_verifyDevice` | Full check | Chains fast probe → invasive probe in one call | ~500ms+ | LED flash, sensor on | **Yes** |
+
+## Which function should I use?
+
+**For most consumers:** Use `Cap_verifyDevice()`. It's one call, returns a definitive
+answer. You don't need to understand the two-tier architecture.
+
+**For power users:** Use `Cap_isDeviceAvailable()` to pre-scan all cameras and find
+candidates, then `Cap_probeDevice()` to verify only the ones that passed.
+
+Never rely on `Cap_isDeviceAvailable()` alone for a final availability decision —
+on Windows, DirectShow devices are shareable by default, so the fast probe can
+report "available" even when another app is actively streaming from the camera.
 
 ## API
 
 ```c
-// Check whether a camera device is likely available for use.
-// Returns CAPRESULT_OK if available, CAPRESULT_ERR if in use or unavailable,
-// CAPRESULT_DEVICENOTFOUND if the index is out of range.
+// ── Tier 1: Fast, non-invasive probe (~1ms, no side effects) ──────────
+// Good for: batch-scanning many cameras to find likely-free candidates.
+// Not definitive. Do NOT use alone for final availability decisions.
 DLLPUBLIC CapResult Cap_isDeviceAvailable(CapContext ctx, CapDeviceID index);
 
+// ── Tier 2: Invasive probe (~500ms+, powers on sensor) ────────────────
+// The definitive test. Actually opens the device, waits for a frame.
+// Use directly, or use Cap_verifyDevice() to chain Tier 1 + Tier 2.
+DLLPUBLIC CapResult Cap_probeDevice(CapContext ctx, CapDeviceID index,
+    CapFormatID formatID, uint32_t timeoutMs);
+
+// ── Combined: Fast probe + Invasive probe in one call ─────────────────
+// The simplest "is this camera actually usable?" function.
+// Most consumers should use this.
+DLLPUBLIC CapResult Cap_verifyDevice(CapContext ctx, CapDeviceID index,
+    CapFormatID formatID, uint32_t timeoutMs);
+
+// ── Re-enumeration ────────────────────────────────────────────────────
 // Refresh the device list to reflect currently attached/removed cameras.
 // After this call, re-query Cap_getDeviceCount / Cap_getDeviceName —
 // device indices may change. Open streams are NOT affected.
 DLLPUBLIC CapResult Cap_refreshDevices(CapContext ctx);
 
+// ── Disconnect poll ───────────────────────────────────────────────────
 // Check whether the device backing an open stream is still physically
 // connected. Returns CAPRESULT_OK if present, CAPRESULT_ERR if disconnected
 // or the stream is invalid.
@@ -169,10 +206,21 @@ DLLPUBLIC CapResult Cap_isDeviceStillConnected(CapContext ctx, CapStream stream)
 ```c
 CapContext ctx = Cap_createContext();
 
-// ── Check availability before opening ──────────────────────────────
-if (Cap_isDeviceAvailable(ctx, 0) == CAPRESULT_OK) {
-    CapStream stream = Cap_openStream(ctx, 0, 0);
+// ── Simplest path (most consumers) ────────────────────────────────────
+if (Cap_verifyDevice(ctx, chosenDevice, 0, 2000) == CAPRESULT_OK) {
+    CapStream stream = Cap_openStream(ctx, chosenDevice, 0);
     // ... capture ...
+}
+// Camera is truly available — the check opened it, got a frame, and closed it.
+
+// ── Power-user path (batch scan first) ────────────────────────────────
+for (int i = 0; i < Cap_getDeviceCount(ctx); i++) {
+    if (Cap_isDeviceAvailable(ctx, i) == CAPRESULT_OK) {
+        // Likely free — candidate for definitive check
+        if (Cap_probeDevice(ctx, i, 0, 2000) == CAPRESULT_OK) {
+            printf("Device %d confirmed available\n", i);
+        }
+    }
 }
 
 // ── Poll for disconnection ──────────────────────────────────────────
@@ -188,11 +236,11 @@ uint32_t newCount = Cap_getDeviceCount(ctx);
 
 ## Platform Semantics
 
-| Platform | "Available" checks | "Still connected" checks |
-|---|---|---|
-| **Linux** | Opens `/dev/videoN` with `O_RDWR \| O_NONBLOCK`; returns unavailable if `EBUSY` | `VIDIOC_QUERYCAP` ioctl on the open fd |
-| **macOS** | `-[AVCaptureDevice isConnected]` + `isInUseByAnotherApplication` | `-[AVCaptureDevice isConnected]` |
-| **Windows** | Re-enumerates DirectShow devices, binds filter, verifies capture/preview pin | Re-enumerates DirectShow to check device path still exists |
+| Platform | "Available" checks (fast) | "Still connected" checks | Probe (definitive) |
+|---|---|---|---|
+| **Linux** | Opens `/dev/videoN` with `O_RDWR \| O_NONBLOCK`; returns unavailable if `EBUSY` | `VIDIOC_QUERYCAP` ioctl on the open fd | Opens stream, waits for frame via mmap |
+| **macOS** | `-[AVCaptureDevice isConnected]` + `isInUseByAnotherApplication` | `-[AVCaptureDevice isConnected]` | Opens AVCaptureSession, waits for frame |
+| **Windows** | Re-enumerates DirectShow devices, binds filter, verifies capture/preview pin | Re-enumerates DirectShow to check device path still exists | Opens DirectShow graph, waits for Sample Grabber callback |
 
 ## Thread Safety
 
@@ -219,7 +267,7 @@ availability_test.exe --interactive --camera 2
 Demonstrates the TWO TIERS of availability detection:
 
 - **Tier 1** — `Cap_isDeviceAvailable()`: fast (~ms), non-invasive, no sensor power-on
-- **Tier 2** — `Cap_openStream()` + capture frame + close: slow (~500ms+), powers on sensor, proves real access
+- **Tier 2** — `Cap_probeDevice()`: slow (~500ms+), opens stream, captures frame, proves real access
 
 ```bash
 # Compare Tier 1 vs Tier 2 for ALL cameras (parallel, ~3s total)
@@ -234,22 +282,27 @@ inuse_test.exe --interactive
 
 ### Two-tier pattern for consumers
 
-For best results, use the two-tier pattern:
+Most consumers just need `Cap_verifyDevice()` — a single call that runs both tiers:
+
+```c
+// One call, definitive answer
+if (Cap_verifyDevice(ctx, chosenDevice, 0, 2000) == CAPRESULT_OK) {
+    // Camera is truly available — open for real
+    CapStream s = Cap_openStream(ctx, chosenDevice, chosenFormat);
+}
+```
+
+Power users can run the tiers separately:
 
 ```c
 // Tier 1 — fast scan of all cameras
 for (int i = 0; i < Cap_getDeviceCount(ctx); i++) {
     if (Cap_isDeviceAvailable(ctx, i) == CAPRESULT_OK) {
-        // Camera likely free — candidate for opening
+        // Camera likely free — candidate for invasive probe
+        if (Cap_probeDevice(ctx, i, 0, 2000) == CAPRESULT_OK) {
+            // Camera confirmed available
+        }
     }
-}
-
-// Tier 2 — definitive check before committing
-CapStream s = Cap_openStream(ctx, chosenDevice, chosenFormat);
-if (s >= 0) {
-    // Camera is truly available — start capturing
-} else {
-    // Camera is locked by another app (or broken) — try another
 }
 ```
 
