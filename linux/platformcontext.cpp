@@ -64,7 +64,7 @@ bool PlatformContext::enumerateDevices()
     int fd;
     v4l2_capability  video_cap;
 
-    LOG(LOG_INFO,"Enumerating devices\n");
+    LOG(LOG_DEBUG,"Enumerating devices\n");
 
     const uint32_t maxDevices = 64; // FIXME: is this a sane number for linux?
 
@@ -89,37 +89,37 @@ bool PlatformContext::enumerateDevices()
         
         if ((video_cap.device_caps & V4L2_CAP_VIDEO_CAPTURE) != 0)
         {
-            LOG(LOG_INFO,"Name: '%s'\n", video_cap.card);
-            LOG(LOG_INFO,"Path: '%s'\n", fname);
-            LOG(LOG_INFO,"Bus : '%s'\n", video_cap.bus_info);
-            LOG(LOG_INFO,"capflags = %08X\n", video_cap.capabilities);
-            LOG(LOG_INFO,"devflags = %08X\n", video_cap.device_caps);
+            LOG(LOG_DEBUG,"Name: '%s'\n", video_cap.card);
+            LOG(LOG_DEBUG,"Path: '%s'\n", fname);
+            LOG(LOG_DEBUG,"Bus : '%s'\n", video_cap.bus_info);
+            LOG(LOG_DEBUG,"capflags = %08X\n", video_cap.capabilities);
+            LOG(LOG_DEBUG,"devflags = %08X\n", video_cap.device_caps);
 
             if ((video_cap.device_caps & V4L2_CAP_READWRITE) != 0)
             {
-                LOG(LOG_INFO,"read/write supported\n");
+                LOG(LOG_DEBUG,"read/write supported\n");
             }
             else
             {
-                LOG(LOG_INFO,"read/write NOT supported\n");
+                LOG(LOG_DEBUG,"read/write NOT supported\n");
             }
 
             if ((video_cap.device_caps & V4L2_CAP_STREAMING) != 0)
             {
-                LOG(LOG_INFO,"streaming I/O supported\n");
+                LOG(LOG_DEBUG,"streaming I/O supported\n");
             }
             else
             {
-                LOG(LOG_INFO,"streaming I/O NOT supported\n");
-            }            
+                LOG(LOG_DEBUG,"streaming I/O NOT supported\n");
+            }
 
             if ((video_cap.device_caps & V4L2_CAP_ASYNCIO) != 0)
             {
-                LOG(LOG_INFO,"async I/O supported\n");
+                LOG(LOG_DEBUG,"async I/O supported\n");
             }
             else
             {
-                LOG(LOG_INFO,"async I/O NOT supported\n");
+                LOG(LOG_DEBUG,"async I/O NOT supported\n");
             }   
 
             platformDeviceInfo* dinfo = new platformDeviceInfo();
@@ -148,8 +148,8 @@ bool PlatformContext::enumerateDevices()
                 }
                 else
                 {
-                    LOG(LOG_INFO, "Format %d\n", index);
-                    LOG(LOG_INFO, "  FOURCC = %s\n", fourCCToString(fmtdesc.pixelformat).c_str());
+                    LOG(LOG_DEBUG, "Format %d\n", index);
+                    LOG(LOG_DEBUG, "  FOURCC = %s\n", fourCCToString(fmtdesc.pixelformat).c_str());
 
                     // .. then we enumerate all the frame buffer sizes for that
                     // pixel format type.

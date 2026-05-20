@@ -160,12 +160,12 @@ bool PlatformContext::enumerateDevices()
 
             info->m_uniqueID.append(" ");
             info->m_uniqueID.append(wstringToString(info->m_devicePath));
-            LOG(LOG_INFO, "     -> PATH %s\n", wstringToString(info->m_devicePath).c_str());
+            LOG(LOG_DEBUG, "     -> PATH %s\n", wstringToString(info->m_devicePath).c_str());
 
             enumerateFrameInfo(moniker, info);
             m_devices.push_back(info);
 
-            LOG(LOG_INFO, "ID %d -> %s\n", num_devices, info->m_name.c_str());
+            LOG(LOG_DEBUG, "ID %d -> %s\n", num_devices, info->m_name.c_str());
 
             VariantClear(&name);
 
@@ -321,7 +321,7 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
     ScopedComPtr<IEnumPins> pinEnum(pEnum);
     if (FindPinByCategory(pCap, PINDIR_OUTPUT, PIN_CATEGORY_CAPTURE, &pPin) == S_OK)
     {
-        LOG(LOG_INFO, "Capture pin found!\n");
+        LOG(LOG_DEBUG, "Capture pin found!\n");
     }
     else
     {
@@ -344,7 +344,7 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
     int iCount = 0, iSize = 0;
     hr = pConfig->GetNumberOfCapabilities(&iCount, &iSize);
 
-    LOG(LOG_INFO,"Stream has %d capabilities.\n", iCount);
+    LOG(LOG_DEBUG,"Stream has %d capabilities.\n", iCount);
 
     // Check the size to make sure we pass in the correct structure.
     if (iSize == sizeof(VIDEO_STREAM_CONFIG_CAPS))
@@ -397,7 +397,7 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
 
                             std::string fourCCString = fourCCToString(newFrameInfo.fourcc);
 
-                            LOG(LOG_INFO, "%d x %d  %d fps  %d bpp FOURCC=%s\n", newFrameInfo.width, newFrameInfo.height,
+                            LOG(LOG_DEBUG, "%d x %d  %d fps  %d bpp FOURCC=%s\n", newFrameInfo.width, newFrameInfo.height,
                                 newFrameInfo.fps, newFrameInfo.bpp, fourCCString.c_str());
 
                             info->m_formats.push_back(newFrameInfo);

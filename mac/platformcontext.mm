@@ -44,7 +44,7 @@ Context* createPlatformContext()
 PlatformContext::PlatformContext() :
     Context()
 {
-    LOG(LOG_INFO, "Platform context created\n");
+    LOG(LOG_DEBUG, "Platform context created\n");
     if ([AVCaptureDevice respondsToSelector:@selector(authorizationStatusForMediaType:)]) {
         cameraPermissionReceived = 0;
         if ([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo] == AVAuthorizationStatusAuthorized) {
