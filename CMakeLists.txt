@@ -170,6 +170,10 @@ target_compile_definitions(openpnp-capture PRIVATE
 target_include_directories(openpnp-capture PRIVATE
     ${spdlog_SOURCE_DIR}/include
 )
+# spdlog's bundled fmt requires UTF-8 source/execution charset on MSVC
+if(MSVC)
+    target_compile_options(openpnp-capture PRIVATE /utf-8)
+endif()
 
 # ======== libjpeg-turbo setup for ALL platforms ========
 find_package(PkgConfig QUIET)

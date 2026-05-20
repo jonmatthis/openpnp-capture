@@ -18,7 +18,7 @@ set(SOURCE main.cpp)
 add_executable(openpnp-capture-test ${SOURCE})
 
 target_link_libraries(openpnp-capture-test PRIVATE openpnp-capture)
-target_link_libraries(openpnp-capture-test ${TurboJPEG_LIBRARIES})
+target_link_libraries(openpnp-capture-test PRIVATE ${TurboJPEG_LIBRARIES})
 
 ########################################################
 ### GTK test application
@@ -38,5 +38,5 @@ set(SOURCE2 gtkmain.cpp)
 add_executable(oc-gtk ${SOURCE2})
 
 target_link_libraries(oc-gtk PRIVATE openpnp-capture)
-target_link_libraries(oc-gtk ${TurboJPEG_LIBRARIES})
-target_link_libraries(oc-gtk ${GTK3_LIBRARIES})
+target_link_libraries(oc-gtk PRIVATE ${TurboJPEG_LIBRARIES})
+target_link_libraries(oc-gtk PRIVATE ${GTK3_LIBRARIES})
