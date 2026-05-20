@@ -107,8 +107,8 @@ ENDIF()
 # current project
 set (CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-# force C++11 standard
-set(CMAKE_CXX_STANDARD 11)
+# force C++14 standard (required for std::make_unique, used by logging.cpp)
+set(CMAKE_CXX_STANDARD 14)
 
 # load module that gets info from GIT 
 # see: http://brianmilco.blogspot.nl/2012/11/cmake-automatically-use-git-tags-as.html

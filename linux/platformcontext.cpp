@@ -89,9 +89,9 @@ bool PlatformContext::enumerateDevices()
         
         if ((video_cap.device_caps & V4L2_CAP_VIDEO_CAPTURE) != 0)
         {
-            LOG_DEBUG("Name: '{}'", video_cap.card);
+            LOG_DEBUG("Name: '{}'", reinterpret_cast<const char*>(video_cap.card));
             LOG_DEBUG("Path: '{}'", fname);
-            LOG_DEBUG("Bus : '{}'", video_cap.bus_info);
+            LOG_DEBUG("Bus : '{}'", reinterpret_cast<const char*>(video_cap.bus_info));
             LOG_DEBUG("capflags = {:08X}", video_cap.capabilities);
             LOG_DEBUG("devflags = {:08X}", video_cap.device_caps);
 
