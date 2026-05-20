@@ -37,6 +37,7 @@ set(SOURCE2 gtkmain.cpp)
 
 add_executable(oc-gtk ${SOURCE2})
 
+target_include_directories(oc-gtk PRIVATE ${spdlog_SOURCE_DIR}/include)
 target_link_libraries(oc-gtk PRIVATE openpnp-capture)
 target_link_libraries(oc-gtk PRIVATE ${TurboJPEG_LIBRARIES})
 target_link_libraries(oc-gtk PRIVATE ${GTK3_LIBRARIES})

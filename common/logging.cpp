@@ -117,7 +117,7 @@ std::shared_ptr<spdlog::logger> openpnp::getLogger() {
         lgr->set_level(spdlog::level::debug);
         lgr->flush_on(spdlog::level::err);
 
-        // skellylogs-inspired format: message-first with pipe separators
+        //  format matched to skellylogs: message-first with pipe separators
         // %* = custom uppercase level flag, %n = package name, %g:%# = file:line
         auto formatter = std::make_unique<spdlog::pattern_formatter>();
         formatter->add_flag<flag_upper_level>('*');
