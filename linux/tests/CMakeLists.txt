@@ -13,11 +13,11 @@
 cmake_minimum_required(VERSION 3.0)
 project (openpnp-capture-test)
 
-set (SOURCE main.cpp ../../common/logging.cpp)
+set(SOURCE main.cpp)
 
 add_executable(openpnp-capture-test ${SOURCE})
 
-target_link_libraries(openpnp-capture-test openpnp-capture)
+target_link_libraries(openpnp-capture-test PRIVATE openpnp-capture)
 target_link_libraries(openpnp-capture-test ${TurboJPEG_LIBRARIES})
 
 ########################################################
@@ -33,10 +33,10 @@ link_directories(${GTK3_LIBRARY_DIRS})
 # Add other flags to the compiler
 add_definitions(${GTK3_CFLAGS_OTHER})
 
-set (SOURCE2 gtkmain.cpp ../../common/logging.cpp)
+set(SOURCE2 gtkmain.cpp)
 
 add_executable(oc-gtk ${SOURCE2})
 
-target_link_libraries(oc-gtk openpnp-capture)
+target_link_libraries(oc-gtk PRIVATE openpnp-capture)
 target_link_libraries(oc-gtk ${TurboJPEG_LIBRARIES})
 target_link_libraries(oc-gtk ${GTK3_LIBRARIES})

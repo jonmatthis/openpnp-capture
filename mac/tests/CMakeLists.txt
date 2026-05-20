@@ -13,8 +13,8 @@
 cmake_minimum_required(VERSION 3.10)
 project (openpnp-capture-test)
 
-set (SOURCE main.cpp ../../common/logging.cpp)
+set(SOURCE main.cpp)
 
 add_executable(openpnp-capture-test ${SOURCE})
 
-target_link_libraries(openpnp-capture-test openpnp-capture)
+target_link_libraries(openpnp-capture-test PRIVATE openpnp-capture)

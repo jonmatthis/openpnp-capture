@@ -165,7 +165,11 @@ target_compile_definitions(openpnp-capture PRIVATE
     SPDLOG_ACTIVE_LEVEL=${SPDLOG_ACTIVE_LEVEL_DEFINE}
 )
 
-target_link_libraries(openpnp-capture PRIVATE spdlog::spdlog_header_only)
+# spdlog is header-only; use the include path directly to avoid
+# exporting a dependency on its CMake target in install(EXPORT)
+target_include_directories(openpnp-capture PRIVATE
+    ${spdlog_SOURCE_DIR}/include
+)
 
 # ======== libjpeg-turbo setup for ALL platforms ========
 find_package(PkgConfig QUIET)
