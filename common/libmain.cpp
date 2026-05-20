@@ -288,10 +288,6 @@ DLLPUBLIC CapResult Cap_getStreamResolution(CapContext ctx, CapStream stream,
     return CAPRESULT_ERR;
 }
 
-#if 0
-
-// not used for now..
-
 DLLPUBLIC CapResult Cap_setFrameRate(CapContext ctx, CapStream stream, uint32_t fps)
 {
     if (ctx != 0)
@@ -303,9 +299,8 @@ DLLPUBLIC CapResult Cap_setFrameRate(CapContext ctx, CapStream stream, uint32_t 
         }
         return CAPRESULT_OK;
     }
-    return CAPRESULT_ERR;    
+    return CAPRESULT_ERR;
 }
-#endif
 
 DLLPUBLIC CapResult Cap_getPropertyLimits(CapContext ctx, CapStream stream, CapPropertyID propID, 
     int32_t *min, int32_t *max, int32_t *dValue)

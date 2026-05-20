@@ -98,7 +98,10 @@ typedef struct
     uint32_t width;     ///< width in pixels
     uint32_t height;    ///< height in pixels
     uint32_t fourcc;    ///< fourcc code (platform dependent)
-    uint32_t fps;       ///< frames per second
+    uint32_t fps;       ///< frames per second (one of potentially several
+                        ///  supported rates for this resolution; use
+                        ///  Cap_getNumFormats / Cap_getFormatInfo to enumerate
+                        ///  all available FPS values for a given resolution)
     uint32_t bpp;       ///< bits per pixel
 } CapFormatInfo;
 
@@ -443,7 +446,23 @@ DLLPUBLIC CapResult Cap_setProperty(CapContext ctx, CapStream stream, CapPropert
 */
 DLLPUBLIC CapResult Cap_setAutoProperty(CapContext ctx, CapStream stream, CapPropertyID propID, uint32_t bOnOff);
 
-/** get the value of a camera/stream property (e.g. zoom, exposure etc) 
+/** set the frame rate of an opened stream (fps)
+
+    PLATFORM SUPPORT:
+      Linux/V4L2  — true runtime change via VIDIOC_S_PARM (no restart needed).
+      Windows     — NOT supported mid-stream.  SetFormat + Reconnect on a
+                    running DirectShow graph cannot renegotiate timing while
+                    pins are connected.  Close the stream and reopen with a
+                    different format ID instead.
+      macOS       — NOT supported (stub; returns CAPRESULT_ERR).
+
+    returns: CAPRESULT_OK if the framerate was applied.
+             CAPRESULT_ERR if not supported on this platform, or the
+             stream cannot accept the requested framerate.
+*/
+DLLPUBLIC CapResult Cap_setFrameRate(CapContext ctx, CapStream stream, uint32_t fps);
+
+/** get the value of a camera/stream property (e.g. zoom, exposure etc)
 
     returns: CAPRESULT_OK if all is well.
              CAPRESULT_PROPERTYNOTSUPPORTED if property not available.

@@ -34,6 +34,7 @@
 #include <string>
 #include <cstring>
 #include <cerrno>
+#include <algorithm>
 #include <memory.h>
 #include <linux/videodev2.h>
 
@@ -159,9 +160,19 @@ bool PlatformContext::enumerateDevices()
                     while(queryFrameSize(fd, frmindex, fmtdesc.pixelformat, &cinfo.width, &cinfo.height))
                     {
                         frmindex++;
-                        cinfo.fps = findMaxFrameRate(fd, fmtdesc.pixelformat, cinfo.width, cinfo.height);
-                        dinfo->m_formats.push_back(cinfo);
-                        LOG_TRACE("  {} x {}", cinfo.width, cinfo.height);
+                        std::vector<uint32_t> fpsValues = enumerateFrameRates(
+                            fd, fmtdesc.pixelformat, cinfo.width, cinfo.height);
+                        if (fpsValues.empty())
+                        {
+                            fpsValues.push_back(0);
+                        }
+                        for (uint32_t fps : fpsValues)
+                        {
+                            CapFormatInfo fmtInfo = cinfo;
+                            fmtInfo.fps = fps;
+                            dinfo->m_formats.push_back(fmtInfo);
+                        }
+                        LOG_TRACE("  {} x {}  ({} fps values)", cinfo.width, cinfo.height, fpsValues.size());
                     }
                 }
                 index++;
@@ -231,32 +242,31 @@ bool PlatformContext::isDeviceAvailable(CapDeviceID id)
     return true;
 }
 
-uint32_t PlatformContext::findMaxFrameRate(int fd, uint32_t pixelformat,
+std::vector<uint32_t> PlatformContext::enumerateFrameRates(int fd, uint32_t pixelformat,
     uint32_t width, uint32_t height)
 {
-    uint32_t fps = 0;
+    std::vector<uint32_t> fpsValues;
 
-    // now search the frame rates
     v4l2_frmivalenum ivals;
     memset(&ivals, 0, sizeof(ivals));
     ivals.pixel_format = pixelformat;
     ivals.width = width;
     ivals.height = height;
     ivals.index = 0;
-    LOG_TRACE("Finding max frame rates: ");
+
     while (ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &ivals) != -1)
     {
         if (ivals.type == V4L2_FRMIVAL_TYPE_DISCRETE)
         {
-            LOG_TRACE("  FPS {}/{}", ivals.discrete.denominator, ivals.discrete.numerator);
-            uint32_t v = ivals.discrete.denominator/ivals.discrete.numerator;
-            if (fps < v)
+            uint32_t fps = ivals.discrete.denominator / ivals.discrete.numerator;
+            if (fps > 0 && std::find(fpsValues.begin(), fpsValues.end(), fps) == fpsValues.end())
             {
-                fps = v;
+                LOG_TRACE("  FPS {}/{} = {}", ivals.discrete.denominator, ivals.discrete.numerator, fps);
+                fpsValues.push_back(fps);
             }
         }
         ivals.index++;
     }
 
-    return fps;
+    return fpsValues;
 }

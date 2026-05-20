@@ -25,9 +25,12 @@ add_executable(availability_test availability_test.cpp)
 
 add_executable(inuse_test inuse_test.cpp)
 
+add_executable(fps_test fps_test.cpp)
+
 target_link_libraries(openpnp-capture-test openpnp-capture)
 target_link_libraries(openpnp-capture-raw-test openpnp-capture)
 target_link_libraries(openpnp-capture-jpeg-decode-bench openpnp-capture)
 target_link_libraries(diagnostic_settings openpnp-capture)
 target_link_libraries(availability_test openpnp-capture)
 target_link_libraries(inuse_test openpnp-capture)
+target_link_libraries(fps_test openpnp-capture)

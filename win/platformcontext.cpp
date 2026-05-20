@@ -385,15 +385,13 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
                             newFrameInfo.width  = pVih->bmiHeader.biWidth;
                             newFrameInfo.height = pVih->bmiHeader.biHeight;
 
+                            uint32_t fpsDefault = 0;
                             if (pVih->AvgTimePerFrame != 0)
                             {
                                 // pVih->AvgTimePerFrame is in units of 100ns
-                                newFrameInfo.fps = static_cast<uint32_t>(10.0e6f/static_cast<float>(pVih->AvgTimePerFrame));
+                                fpsDefault = static_cast<uint32_t>(10.0e6f/static_cast<float>(pVih->AvgTimePerFrame));
                             }
-                            else
-                            {
-                                newFrameInfo.fps = 0;
-                            }
+                            newFrameInfo.fps = fpsDefault;
 
                             std::string fourCCString = fourCCToString(newFrameInfo.fourcc);
 
@@ -401,6 +399,33 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
                                 newFrameInfo.fps, newFrameInfo.bpp, fourCCString.c_str());
 
                             info->m_formats.push_back(newFrameInfo);
+
+                            // Expose the full FPS range from VIDEO_STREAM_CONFIG_CAPS.
+                            // MinFrameInterval = shortest interval = MAX FPS
+                            // MaxFrameInterval = longest interval = MIN FPS
+                            if (scc.MinFrameInterval > 0 && scc.MaxFrameInterval > 0 &&
+                                scc.MinFrameInterval < scc.MaxFrameInterval)
+                            {
+                                uint32_t fpsMax = static_cast<uint32_t>(10000000ULL / scc.MinFrameInterval);
+                                uint32_t fpsMin = static_cast<uint32_t>(10000000ULL / scc.MaxFrameInterval);
+
+                                if (fpsMax > fpsMin)
+                                {
+                                    static const uint32_t breakpoints[] = {
+                                        5, 10, 15, 20, 25, 30, 50, 60, 90, 100, 120, 180, 240
+                                    };
+
+                                    for (uint32_t bp : breakpoints)
+                                    {
+                                        if (bp >= fpsMin && bp <= fpsMax && bp != fpsDefault)
+                                        {
+                                            CapFormatInfo bpInfo = newFrameInfo;
+                                            bpInfo.fps = bp;
+                                            info->m_formats.push_back(bpInfo);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

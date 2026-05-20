@@ -31,6 +31,7 @@
 #include "platformcontext.h"
 #include "scopedcomptr.h"
 
+#include <climits>
 #include <cmath>
 #include <cstdio>
 
@@ -260,6 +261,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     }
 
     m_devicePath = dinfo->m_devicePath;
+    m_requestedFourCC = fourCC;
 
     hr = FindCaptureDevice(&m_sourceFilter, dinfo->m_devicePath.c_str());
     if (hr != S_OK)
@@ -291,9 +293,6 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
     ScopedComPtr<IAMStreamConfig> streamConfig(pConfig);
 
-    // find the desired video mode
-    AM_MEDIA_TYPE *selectedConfig = NULL;
-
     int iCount = 0, iSize = 0;
     hr = streamConfig->GetNumberOfCapabilities(&iCount, &iSize);
     if (FAILED(hr))
@@ -311,8 +310,12 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     {
         bool formatSet = false;
         LOG_TRACE("Searching for correct frame buffer mode..");
-        LOG_TRACE("Looking for {} {}  {}..", width, height, 
-            fourCCToString(fourCC).c_str());
+        LOG_TRACE("Looking for {} {}  {} at {} fps..", width, height,
+            fourCCToString(fourCC).c_str(), fps);
+
+        AM_MEDIA_TYPE *selectedConfig = nullptr;
+        int bestFpsDistance = INT_MAX;
+
         // Use the video capabilities structure.
         for (int iFormat = 0; iFormat < iCount; iFormat++)
         {
@@ -343,31 +346,82 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                         break;
                     }
 
-                    LOG_TRACE("  {} x {} {}", pVih->bmiHeader.biWidth, 
+                    uint32_t formatFps = pVih->AvgTimePerFrame > 0
+                        ? (uint32_t)(10000000ULL / pVih->AvgTimePerFrame)
+                        : 0;
+
+                    LOG_TRACE("  {} x {} {} @ {} fps (AvgTimePerFrame={})", pVih->bmiHeader.biWidth,
                         pVih->bmiHeader.biHeight,
-                        fourCCToString(format4CC).c_str());
+                        fourCCToString(format4CC).c_str(),
+                        formatFps,
+                        pVih->AvgTimePerFrame);
 
                     if ((pVih->bmiHeader.biWidth == width) &&
                         (pVih->bmiHeader.biHeight == height) &&
                         (format4CC == fourCC))
                     {
-                        streamConfig->SetFormat(pmtConfig);                        
-                        formatSet = true;
-                        LOG_INFO("Capture format set!");
-                        break;
+                        if (fps == 0)
+                        {
+                            // No FPS preference — take first matching format
+                            selectedConfig = pmtConfig;
+                            formatSet = true;
+                            break;
+                        }
+
+                        // FPS-aware selection: skip formats with no timing info
+                        if (pVih->AvgTimePerFrame == 0)
+                        {
+                            _DeleteMediaType(pmtConfig);
+                            continue;
+                        }
+
+                        int distance = abs((int)formatFps - (int)fps);
+                        if (distance < bestFpsDistance)
+                        {
+                            // New best match — free previous candidate
+                            if (selectedConfig) _DeleteMediaType(selectedConfig);
+                            selectedConfig = pmtConfig;
+                            bestFpsDistance = distance;
+                            formatSet = true;
+                        }
+                        else
+                        {
+                            _DeleteMediaType(pmtConfig);
+                        }
+                    }
+                    else
+                    {
+                        _DeleteMediaType(pmtConfig);
                     }
                 }
-                
-
-                // Delete the media type when you are done.
-                _DeleteMediaType(pmtConfig);
+                else
+                {
+                    _DeleteMediaType(pmtConfig);
+                }
             }
         }
-        if (!formatSet)
+
+        if (formatSet)
+        {
+            if (fps > 0 && selectedConfig)
+            {
+                VIDEOINFOHEADER *pVih = reinterpret_cast<VIDEOINFOHEADER*>(selectedConfig->pbFormat);
+                uint32_t oldAvg = pVih->AvgTimePerFrame;
+                uint32_t oldFps = oldAvg > 0 ? (uint32_t)(10000000ULL / oldAvg) : 0;
+                pVih->AvgTimePerFrame = 10000000ULL / fps;
+                LOG_INFO("AvgTimePerFrame  {} -> {}  ({} fps -> {} fps)",
+                    oldAvg, pVih->AvgTimePerFrame, oldFps, fps);
+            }
+
+            streamConfig->SetFormat(selectedConfig);
+            _DeleteMediaType(selectedConfig);
+            LOG_INFO("Capture format set!");
+        }
+        else
         {
             LOG_ERROR("Failed to find capture format!");
             return false;
-        }        
+        }
     }
     else
     {
@@ -608,6 +662,8 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
             pConfig2->GetNumberOfCapabilities(&iCount2, &iSize2);
             LOG_DEBUG(
                 "Stream config: camera reports %d format capabilities for re-negotiation\n", iCount2);
+            AM_MEDIA_TYPE *selectedConfig = nullptr;
+            int bestFpsDistance = INT_MAX;
             for (int iFmt = 0; iFmt < iCount2; iFmt++)
             {
                 VIDEO_STREAM_CONFIG_CAPS scc;
@@ -625,17 +681,62 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                         if (pVih->bmiHeader.biWidth == width &&
                             pVih->bmiHeader.biHeight == height && fc == fourCC)
                         {
-                            hr = pConfig2->SetFormat(pMt);
-                            LOG_DEBUG(
-                                "Stream config: SetFormat(%dx%d %s) -> %s (hr=0x%08X)\n",
-                                width, height, fourCCToString(fourCC).c_str(),
-                                SUCCEEDED(hr) ? "OK" : "VFW_E_INVALIDMEDIATYPE (pin needs reconnect)", hr);
+                            if (fps == 0)
+                            {
+                                // No FPS preference — take first match
+                                hr = pConfig2->SetFormat(pMt);
+                                LOG_DEBUG(
+                                    "Stream config: SetFormat(%dx%d %s) -> %s (hr=0x%08X)\n",
+                                    width, height, fourCCToString(fourCC).c_str(),
+                                    SUCCEEDED(hr) ? "OK" : "VFW_E_INVALIDMEDIATYPE (pin needs reconnect)", hr);
+                                _DeleteMediaType(pMt);
+                                break;
+                            }
+
+                            // FPS-aware: skip formats with no timing info
+                            if (pVih->AvgTimePerFrame == 0)
+                            {
+                                _DeleteMediaType(pMt);
+                                continue;
+                            }
+
+                            uint32_t formatFps = (uint32_t)(10000000ULL / pVih->AvgTimePerFrame);
+                            int distance = abs((int)formatFps - (int)fps);
+                            if (distance < bestFpsDistance)
+                            {
+                                if (selectedConfig) _DeleteMediaType(selectedConfig);
+                                selectedConfig = pMt;
+                                bestFpsDistance = distance;
+                            }
+                            else
+                            {
+                                _DeleteMediaType(pMt);
+                            }
+                        }
+                        else
+                        {
                             _DeleteMediaType(pMt);
-                            break;
                         }
                     }
-                    _DeleteMediaType(pMt);
+                    else
+                    {
+                        _DeleteMediaType(pMt);
+                    }
                 }
+            }
+
+            if (fps > 0 && selectedConfig)
+            {
+                VIDEOINFOHEADER *pVih = (VIDEOINFOHEADER*)selectedConfig->pbFormat;
+                uint32_t oldFps = pVih->AvgTimePerFrame > 0
+                    ? (uint32_t)(10000000ULL / pVih->AvgTimePerFrame) : 0;
+                pVih->AvgTimePerFrame = 10000000ULL / fps;
+                hr = pConfig2->SetFormat(selectedConfig);
+                LOG_DEBUG(
+                    "Stream config: SetFormat(%dx%d %s @ %d fps, was %d) -> %s (hr=0x%08X)\n",
+                    width, height, fourCCToString(fourCC).c_str(), fps, oldFps,
+                    SUCCEEDED(hr) ? "OK" : "VFW_E_INVALIDMEDIATYPE (pin needs reconnect)", hr);
+                _DeleteMediaType(selectedConfig);
             }
             pConfig2->Release();
         }
@@ -752,8 +853,136 @@ bool PlatformStream::isDeviceConnected()
 
 bool PlatformStream::setFrameRate(uint32_t fps)
 {
-    //FIXME: implement
-    return false;
+    if (!m_isOpen || fps == 0) return false;
+
+    const GUID& videoPin = captureOrPreviewPin();
+    IAMStreamConfig *pConfig = NULL;
+    HRESULT hr = m_capture->FindInterface(&videoPin, 0,
+        m_sourceFilter, IID_IAMStreamConfig, (void**)&pConfig);
+    if (FAILED(hr))
+    {
+        LOG_ERROR("setFrameRate: could not get IAMStreamConfig (hr=0x%08X)", hr);
+        return false;
+    }
+
+    int iCount = 0, iSize = 0;
+    pConfig->GetNumberOfCapabilities(&iCount, &iSize);
+
+    uint32_t searchFourCC = m_requestedFourCC;
+
+    LOG_DEBUG("setFrameRate: searching for {}x{} {} ({} caps)",
+        m_width, m_height, fourCCToString(searchFourCC).c_str(), iCount);
+
+    AM_MEDIA_TYPE *selectedConfig = nullptr;
+    int bestFpsDistance = INT_MAX;
+
+    for (int iFmt = 0; iFmt < iCount; iFmt++)
+    {
+        VIDEO_STREAM_CONFIG_CAPS scc;
+        AM_MEDIA_TYPE *pMt;
+        if (SUCCEEDED(pConfig->GetStreamCaps(iFmt, &pMt, (BYTE*)&scc)))
+        {
+            if (pMt->majortype == MEDIATYPE_Video &&
+                pMt->formattype == FORMAT_VideoInfo &&
+                pMt->cbFormat >= sizeof(VIDEOINFOHEADER) &&
+                pMt->pbFormat != NULL)
+            {
+                VIDEOINFOHEADER *pVih = (VIDEOINFOHEADER*)pMt->pbFormat;
+                uint32_t fc = pVih->bmiHeader.biCompression;
+                if (fc == BI_RGB) fc = 'RGB ';
+                LOG_TRACE("setFrameRate:   cap[{}] {}x{} {} (looking for {}x{} {})",
+                    iFmt, pVih->bmiHeader.biWidth, pVih->bmiHeader.biHeight,
+                    fourCCToString(fc).c_str(),
+                    m_width, m_height, fourCCToString(searchFourCC).c_str());
+
+                if (pVih->bmiHeader.biWidth == m_width &&
+                    pVih->bmiHeader.biHeight == m_height &&
+                    fc == searchFourCC)
+                {
+                    if (pVih->AvgTimePerFrame == 0)
+                    {
+                        _DeleteMediaType(pMt);
+                        continue;
+                    }
+
+                    uint32_t formatFps = (uint32_t)(10000000ULL / pVih->AvgTimePerFrame);
+                    int distance = abs((int)formatFps - (int)fps);
+                    if (distance < bestFpsDistance)
+                    {
+                        if (selectedConfig) _DeleteMediaType(selectedConfig);
+                        selectedConfig = pMt;
+                        bestFpsDistance = distance;
+                    }
+                    else
+                    {
+                        _DeleteMediaType(pMt);
+                    }
+                }
+                else
+                {
+                    _DeleteMediaType(pMt);
+                }
+            }
+            else
+            {
+                _DeleteMediaType(pMt);
+            }
+        }
+    }
+
+    if (!selectedConfig)
+    {
+        LOG_ERROR("setFrameRate: no matching format for {}x{} {}",
+            m_width, m_height, fourCCToString(searchFourCC).c_str());
+        pConfig->Release();
+        return false;
+    }
+
+    VIDEOINFOHEADER *pVih = (VIDEOINFOHEADER*)selectedConfig->pbFormat;
+    uint32_t oldFps = pVih->AvgTimePerFrame > 0
+        ? (uint32_t)(10000000ULL / pVih->AvgTimePerFrame) : 0;
+    pVih->AvgTimePerFrame = 10000000ULL / fps;
+
+    hr = pConfig->SetFormat(selectedConfig);
+    LOG_DEBUG("setFrameRate: SetFormat({}x{} {} @ {} fps, was {}) -> {} (hr=0x{:08X})",
+        m_width, m_height, fourCCToString(searchFourCC).c_str(), fps, oldFps,
+        SUCCEEDED(hr) ? "OK" : "needs reconnect", hr);
+
+    _DeleteMediaType(selectedConfig);
+    pConfig->Release();
+
+    // On a running graph SetFormat returns VFW_E_INVALIDMEDIATYPE because the
+    // pin is already connected.  Try to force-reconnect the output pin —
+    // this sometimes works during graph startup but rarely mid-stream.
+    bool reconnected = false;
+    IEnumPins *enumPins = NULL;
+    if (SUCCEEDED(m_sourceFilter->EnumPins(&enumPins)) && enumPins)
+    {
+        IPin *pin = NULL;
+        while (enumPins->Next(1, &pin, NULL) == S_OK && pin)
+        {
+            PIN_DIRECTION dir;
+            IPin *connectedTo = NULL;
+            if (SUCCEEDED(pin->QueryDirection(&dir)) &&
+                dir == PINDIR_OUTPUT &&
+                SUCCEEDED(pin->ConnectedTo(&connectedTo)) &&
+                connectedTo != NULL)
+            {
+                hr = m_graph->Reconnect(pin);
+                LOG_DEBUG("setFrameRate: Reconnect -> {} (hr=0x{:08X})",
+                    SUCCEEDED(hr) ? "OK" : "FAILED", hr);
+                reconnected = true;
+                connectedTo->Release();
+                pin->Release();
+                break;
+            }
+            if (connectedTo) connectedTo->Release();
+            pin->Release();
+        }
+        enumPins->Release();
+    }
+
+    return reconnected && SUCCEEDED(hr);
 }
 
 uint32_t PlatformStream::getFOURCC()

@@ -32,6 +32,7 @@
 #import <AVFoundation/AVFoundation.h>
 
 #include <chrono>
+#include <set>
 #include <thread>
 
 // a platform factory function needed by
@@ -181,49 +182,51 @@ bool PlatformContext::enumerateDevices()
             LOG_WARN( "We might have trouble identifying the UVC control interface.");
         }
 
-        for (AVCaptureDeviceFormat* format in device.formats) 
+        for (AVCaptureDeviceFormat* format in device.formats)
         {
-            //Do we really need a complete list of frame rates?
-            //Hopefully, we can search for a suitable frame rate
-            //when we open the device later...
-            //
-            //This is more in line with the Windows and Linux
-            //versions.
-            //
-            // For now, just report the max frame rate
-
-            #if 0
-            for (AVFrameRateRange* frameRateRange in format.videoSupportedFrameRateRanges) {
-                for (int frameRate = frameRateRange.minFrameRate; frameRate <= frameRateRange.maxFrameRate; frameRate++) {
-                    CMVideoDimensions dims = CMVideoFormatDescriptionGetDimensions(format.formatDescription);
-                    CapFormatInfo formatInfo;
-                    formatInfo.width = dims.width;
-                    formatInfo.height = dims.height;
-                    formatInfo.fourcc = CMFormatDescriptionGetMediaSubType(format.formatDescription);
-                    formatInfo.fps = frameRate;
-                    deviceInfo->m_formats.push_back(formatInfo);
-                }
-            }
-            #endif
-
             CMVideoDimensions dims = CMVideoFormatDescriptionGetDimensions(format.formatDescription);
-            CapFormatInfo formatInfo;
-            formatInfo.width = dims.width;
-            formatInfo.height = dims.height;
-            formatInfo.fourcc = CMFormatDescriptionGetMediaSubType(format.formatDescription);
-            
-            uint32_t maxFrameRate = 0;
-            for (AVFrameRateRange* frameRateRange in format.videoSupportedFrameRateRanges) 
+            uint32_t fourcc = CMFormatDescriptionGetMediaSubType(format.formatDescription);
+
+            deviceInfo->m_platformFormats.push_back(format);
+
+            // Collect unique FPS values across all frame rate ranges.
+            // Generate entries at well-known breakpoints within each range.
+            std::set<uint32_t> uniqueFps;
+
+            for (AVFrameRateRange* frameRateRange in format.videoSupportedFrameRateRanges)
             {
-                // find max frame rate
-                if (maxFrameRate < frameRateRange.maxFrameRate)
+                uint32_t fpsMin = (uint32_t)frameRateRange.minFrameRate;
+                uint32_t fpsMax = (uint32_t)frameRateRange.maxFrameRate;
+
+                if (fpsMax > 0) uniqueFps.insert(fpsMax);
+
+                static const uint32_t breakpoints[] = {
+                    5, 10, 15, 20, 25, 30, 50, 60, 90, 100, 120, 180, 240
+                };
+
+                for (uint32_t bp : breakpoints)
                 {
-                    maxFrameRate = frameRateRange.maxFrameRate;
+                    if (bp >= fpsMin && bp <= fpsMax)
+                    {
+                        uniqueFps.insert(bp);
+                    }
                 }
             }
-            formatInfo.fps = maxFrameRate; // just use maximum for now!
-            deviceInfo->m_formats.push_back(formatInfo);
-            deviceInfo->m_platformFormats.push_back(format);
+
+            if (uniqueFps.empty())
+            {
+                uniqueFps.insert(0);
+            }
+
+            for (uint32_t fps : uniqueFps)
+            {
+                CapFormatInfo formatInfo;
+                formatInfo.width  = dims.width;
+                formatInfo.height = dims.height;
+                formatInfo.fourcc = fourcc;
+                formatInfo.fps    = fps;
+                deviceInfo->m_formats.push_back(formatInfo);
+            }
         }
         
         m_devices.push_back(deviceInfo);

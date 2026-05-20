@@ -195,6 +195,8 @@ protected:
 
     VIDEOINFOHEADER m_videoInfo;            ///< video information of current captured stream
 
+    uint32_t        m_requestedFourCC;      ///< FOURCC requested at open time (camera-side, not SampleGrabber)
+
     std::wstring    m_devicePath;           ///< device path for re-enumeration checks
 
     DWORD dwRotRegister;    ///< for exposing the filtergraph to GraphEdt
