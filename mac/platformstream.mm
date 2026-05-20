@@ -71,10 +71,10 @@
                 if (status == kCMBlockBufferNoErr && dataPtr != NULL) {
                     m_stream->submitRawBuffer((uint8_t*)dataPtr, length);
                 } else {
-                    LOG(LOG_ERR, "AVFoundation: CMBlockBufferGetDataPointer failed with status %d\n", (int)status);
+                    LOG_ERROR( "AVFoundation: CMBlockBufferGetDataPointer failed with status {}", (int)status);
                 }
             } else {
-                LOG(LOG_ERR, "AVFoundation: CMSampleBufferGetDataBuffer returned NULL in raw mode\n");
+                LOG_ERROR( "AVFoundation: CMSampleBufferGetDataBuffer returned NULL in raw mode");
             }
             return;
         }
@@ -92,7 +92,7 @@
             fourcc >>= 8;
         }
         fourCCString[4] = 0;
-        LOG(LOG_DEBUG, "%d x %d %s\n", dims.width, dims.height, fourCCString);
+        LOG_DEBUG( "{} x {} {}", dims.width, dims.height, fourCCString);
         #endif
 
 
@@ -144,7 +144,7 @@ PlatformStream::~PlatformStream()
 
 void PlatformStream::close()
 {
-    LOG(LOG_INFO, "closing stream\n");
+    LOG_INFO( "closing stream");
     
     if (m_nativeSession != nullptr)
     {
@@ -163,32 +163,32 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 {
     if (m_isOpen)
     {
-        LOG(LOG_INFO,"open() was called on an active stream.\n");
+        LOG_INFO("open() was called on an active stream.");
         close();
     }
 
     if (owner == nullptr)
     {
-        LOG(LOG_ERR,"open() was with owner=NULL!\n");        
+        LOG_ERROR("open() was with owner=NULL!");        
         return false;
     }
 
     if (device == nullptr)
     {
-        LOG(LOG_ERR,"open() was with device=NULL!\n");
+        LOG_ERROR("open() was with device=NULL!");
         return false;
     }
 
     platformDeviceInfo *dinfo = dynamic_cast<platformDeviceInfo*>(device);
     if (dinfo == NULL)
     {
-        LOG(LOG_CRIT, "Could not cast deviceInfo* to platfromDeviceInfo*!\n");
+        LOG_CRIT( "Could not cast deviceInfo* to platfromDeviceInfo*!");
         return false;
     }
 
     if (dinfo->m_captureDevice == nullptr)
     {
-        LOG(LOG_CRIT, "m_captureDevice is a NULL pointer!\n");
+        LOG_CRIT( "m_captureDevice is a NULL pointer!");
         return false;        
     }
 
@@ -202,7 +202,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     AVCaptureDeviceInput* input = [AVCaptureDeviceInput deviceInputWithDevice:m_device error:&error];
     if (!input) 
     {
-        LOG(LOG_ERR, "Error opening native device %s\n", error.localizedDescription.UTF8String);
+        LOG_ERROR( "Error opening native device {}", error.localizedDescription.UTF8String);
         return false;
     }
 
@@ -210,7 +210,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     // it seems this must go before everything else!
     [m_nativeSession addInput:input];
 
-    LOG(LOG_DEBUG, "Setup for capture format (%d x %d)...\n", width, height);
+    LOG_DEBUG( "Setup for capture format ({} x {})...", width, height);
 
     AVCaptureDeviceFormat *bestFormat = nil;
     for(uint32_t i=0; i<dinfo->m_platformFormats.size(); i++)
@@ -231,7 +231,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
     if (bestFormat == nil)
     {
-        LOG(LOG_ERR,"could not find a suitable format\n");
+        LOG_ERROR("could not find a suitable format");
         return false;
     }
     
@@ -250,7 +250,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
     if (m_rawMode) {
         output.videoSettings = nil;  // native format delivery (MJPEG for MJPEG cameras)
-        LOG(LOG_INFO, "AVFoundation: videoSettings=nil (native format delivery for raw mode)\n");
+        LOG_INFO( "AVFoundation: videoSettings=nil (native format delivery for raw mode)");
     } else {
         output.videoSettings = [NSDictionary dictionaryWithObjectsAndKeys:
             [NSNumber numberWithUnsignedInt:kCVPixelFormatType_32ARGB], (id)kCVPixelBufferPixelFormatTypeKey,
@@ -267,7 +267,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     m_captureDelegate = [PlatformAVCaptureDelegate new];
     if (m_captureDelegate == nullptr)
     {
-        LOG(LOG_ERR, "cannot create PlatformAVCaptureDelegate\n.");
+        LOG_ERROR( "cannot create PlatformAVCaptureDelegate\n.");
         return false;
     }
 
@@ -288,11 +288,11 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     m_uvc = UVCCtrl::create(dinfo->m_vid, dinfo->m_pid, dinfo->m_busLocation);
     if (m_uvc != nullptr)
     {
-        LOG(LOG_DEBUG, "Created a UVC control object!\n");
+        LOG_DEBUG( "Created a UVC control object!");
     }
     else
     {
-        LOG(LOG_DEBUG, "Could not create a UVC control object! -- settings will not be available!\n");
+        LOG_DEBUG( "Could not create a UVC control object! -- settings will not be available!");
     }
 
     m_isOpen = true;
@@ -316,7 +316,7 @@ bool PlatformStream::getPropertyLimits(uint32_t propID, int32_t *min, int32_t *m
 {
     if ((m_uvc != nullptr) && (min != nullptr) && (max != nullptr) && (dValue != nullptr))
     {
-        LOG(LOG_INFO,"PlatformStream::getPropertyLimits\n");
+        LOG_INFO("PlatformStream::getPropertyLimits");
         return m_uvc->getPropertyLimits(propID, min, max, dValue);
     }
     return false;

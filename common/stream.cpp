@@ -27,7 +27,6 @@
 #include <memory.h> // for memcpy
 #include "stream.h"
 #include "context.h"
-#include "logging_v2.h"
 
 // **********************************************************************
 //   Stream

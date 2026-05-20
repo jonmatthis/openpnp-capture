@@ -51,7 +51,7 @@ Context* createPlatformContext()
 PlatformContext::PlatformContext() :
     Context()
 {
-    LOG(LOG_DEBUG, "Context created\n");
+    LOG_DEBUG("Context created");
     enumerateDevices();
 }
 
@@ -64,7 +64,7 @@ bool PlatformContext::enumerateDevices()
     int fd;
     v4l2_capability  video_cap;
 
-    LOG(LOG_DEBUG,"Enumerating devices\n");
+    LOG_DEBUG("Enumerating devices");
 
     const uint32_t maxDevices = 64; // FIXME: is this a sane number for linux?
 
@@ -76,50 +76,50 @@ bool PlatformContext::enumerateDevices()
 
         if ((fd = ::open(fname, O_RDWR /* required */ | O_NONBLOCK)) == -1)
         {
-            //LOG(LOG_ERR, "enumerateDevices: Can't open device %s\n", fname);
+            //LOG_ERROR("enumerateDevices: Can't open device %s", fname);
             continue;
         }
 
         if (ioctl(fd, VIDIOC_QUERYCAP, &video_cap) == -1)
         {
             ::close(fd);
-            LOG(LOG_ERR, "enumerateDevices: Can't get capabilities\n");
+            LOG_ERROR("enumerateDevices: Can't get capabilities");
             continue;
         }
         
         if ((video_cap.device_caps & V4L2_CAP_VIDEO_CAPTURE) != 0)
         {
-            LOG(LOG_DEBUG,"Name: '%s'\n", video_cap.card);
-            LOG(LOG_DEBUG,"Path: '%s'\n", fname);
-            LOG(LOG_DEBUG,"Bus : '%s'\n", video_cap.bus_info);
-            LOG(LOG_DEBUG,"capflags = %08X\n", video_cap.capabilities);
-            LOG(LOG_DEBUG,"devflags = %08X\n", video_cap.device_caps);
+            LOG_DEBUG("Name: '{}'", video_cap.card);
+            LOG_DEBUG("Path: '{}'", fname);
+            LOG_DEBUG("Bus : '{}'", video_cap.bus_info);
+            LOG_DEBUG("capflags = {:08X}", video_cap.capabilities);
+            LOG_DEBUG("devflags = {:08X}", video_cap.device_caps);
 
             if ((video_cap.device_caps & V4L2_CAP_READWRITE) != 0)
             {
-                LOG(LOG_DEBUG,"read/write supported\n");
+                LOG_DEBUG("read/write supported");
             }
             else
             {
-                LOG(LOG_DEBUG,"read/write NOT supported\n");
+                LOG_DEBUG("read/write NOT supported");
             }
 
             if ((video_cap.device_caps & V4L2_CAP_STREAMING) != 0)
             {
-                LOG(LOG_DEBUG,"streaming I/O supported\n");
+                LOG_DEBUG("streaming I/O supported");
             }
             else
             {
-                LOG(LOG_DEBUG,"streaming I/O NOT supported\n");
+                LOG_DEBUG("streaming I/O NOT supported");
             }
 
             if ((video_cap.device_caps & V4L2_CAP_ASYNCIO) != 0)
             {
-                LOG(LOG_DEBUG,"async I/O supported\n");
+                LOG_DEBUG("async I/O supported");
             }
             else
             {
-                LOG(LOG_DEBUG,"async I/O NOT supported\n");
+                LOG_DEBUG("async I/O NOT supported");
             }   
 
             platformDeviceInfo* dinfo = new platformDeviceInfo();
@@ -148,8 +148,8 @@ bool PlatformContext::enumerateDevices()
                 }
                 else
                 {
-                    LOG(LOG_DEBUG, "Format %d\n", index);
-                    LOG(LOG_DEBUG, "  FOURCC = %s\n", fourCCToString(fmtdesc.pixelformat).c_str());
+                    LOG_TRACE("Format {}", index);
+                    LOG_TRACE("  FOURCC = {}", fourCCToString(fmtdesc.pixelformat).c_str());
 
                     // .. then we enumerate all the frame buffer sizes for that
                     // pixel format type.
@@ -161,7 +161,7 @@ bool PlatformContext::enumerateDevices()
                         frmindex++;
                         cinfo.fps = findMaxFrameRate(fd, fmtdesc.pixelformat, cinfo.width, cinfo.height);
                         dinfo->m_formats.push_back(cinfo);
-                        LOG(LOG_VERBOSE, "  %d x %d\n", cinfo.width, cinfo.height);
+                        LOG_TRACE("  {} x {}", cinfo.width, cinfo.height);
                     }
                 }
                 index++;
@@ -191,7 +191,7 @@ bool PlatformContext::queryFrameSize(int fd, uint32_t index, uint32_t pixelforma
         }
         else
         {
-            LOG(LOG_WARNING, "queryFrameSize returned non-discrete frame size!\n");
+            LOG_WARN("queryFrameSize returned non-discrete frame size!");
             *width = 0;
             *height = 0;
         }
@@ -217,11 +217,11 @@ bool PlatformContext::isDeviceAvailable(CapDeviceID id)
     {
         if (errno == EBUSY)
         {
-            LOG(LOG_INFO, "Device %s is busy (EBUSY)\n", info->m_devicePath.c_str());
+            LOG_INFO("Device {} is busy (EBUSY)", info->m_devicePath.c_str());
         }
         else
         {
-            LOG(LOG_ERR, "Device %s cannot be opened: %s\n",
+            LOG_ERROR("Device {} cannot be opened: {}",
                 info->m_devicePath.c_str(), strerror(errno));
         }
         return false;
@@ -243,12 +243,12 @@ uint32_t PlatformContext::findMaxFrameRate(int fd, uint32_t pixelformat,
     ivals.width = width;
     ivals.height = height;
     ivals.index = 0;
-    LOG(LOG_VERBOSE,"Finding max frame rates: \n");
+    LOG_TRACE("Finding max frame rates: ");
     while (ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &ivals) != -1)
     {
         if (ivals.type == V4L2_FRMIVAL_TYPE_DISCRETE)
         {
-            LOG(LOG_VERBOSE,"  FPS %d/%d\n", ivals.discrete.denominator, ivals.discrete.numerator);
+            LOG_TRACE("  FPS {}/{}", ivals.discrete.denominator, ivals.discrete.numerator);
             uint32_t v = ivals.discrete.denominator/ivals.discrete.numerator;
             if (fps < v)
             {

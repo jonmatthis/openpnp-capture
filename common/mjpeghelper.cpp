@@ -46,12 +46,12 @@ bool MJPEGHelper::decompressFrame(const uint8_t *inBuffer,
     tjDecompressHeader2(m_decompressHandle, jpegPtr, inBytes, &width, &height, &jpegSubsamp);    
     if ((width != outBufWidth) || (height != outBufHeight))
     {
-        LOG(LOG_ERR, "tjDecompressHeader2 failed: %s\n", tjGetErrorStr());
+        LOG_ERROR("tjDecompressHeader2 failed: {}", tjGetErrorStr());
         return false;
     }
     else
     {
-        LOG(LOG_VERBOSE, "MJPG: %d %d size %d bytes\n", width, height, inBytes);
+        LOG_TRACE("MJPG: {} {} size {} bytes", width, height, inBytes);
     }
 
     if (tjDecompress2(m_decompressHandle, jpegPtr, inBytes, outBuffer, 
@@ -71,7 +71,7 @@ bool MJPEGHelper::decompressFrame(const uint8_t *inBuffer,
         #if 0
         if (tjGetErrorCode(m_decompressHandle)==TJERR_ERROR)
         {
-            LOG(LOG_ERR, "tjDecompress2 failed: %s\n", tjGetErrorStr());
+            LOG_ERROR("tjDecompress2 failed: {}", tjGetErrorStr());
             return false;
         }
         #endif

@@ -131,7 +131,7 @@ PlatformStream::~PlatformStream()
 
 void PlatformStream::close()
 {
-    LOG(LOG_INFO, "closing stream\n");
+    LOG_INFO("closing stream");
 
     #ifdef _DEBUG
     RemoveFromRot(dwRotRegister);
@@ -205,26 +205,26 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 {
     if (m_isOpen)
     {
-        LOG(LOG_INFO,"open() was called on an active stream.\n");
+        LOG_INFO("open() was called on an active stream.");
         close();
     }
 
     if (owner == nullptr)
     {
-        LOG(LOG_ERR,"open() was with owner=NULL!\n");        
+        LOG_ERROR("open() was with owner=NULL!");        
         return false;
     }
 
     if (device == nullptr)
     {
-        LOG(LOG_ERR,"open() was with device=NULL!\n");
+        LOG_ERROR("open() was with device=NULL!");
         return false;
     }
 
     platformDeviceInfo *dinfo = dynamic_cast<platformDeviceInfo*>(device);
     if (dinfo == NULL)
     {
-        LOG(LOG_CRIT, "Could not cast deviceInfo* to platfromDeviceInfo*!");
+        LOG_CRIT("Could not cast deviceInfo* to platfromDeviceInfo*!");
         return false;
     }
 
@@ -237,7 +237,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     HRESULT hr = CoCreateInstance (CLSID_FilterGraph, NULL, CLSCTX_INPROC, IID_IFilterGraph2, (void **) &m_graph);
     if (FAILED(hr))
     {
-        LOG(LOG_ERR,"Could not create IFilterGraph2\n");
+        LOG_ERROR("Could not create IFilterGraph2");
         return false;
     }
 
@@ -245,7 +245,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 	hr = CoCreateInstance(CLSID_CaptureGraphBuilder2,NULL,CLSCTX_INPROC_SERVER,IID_ICaptureGraphBuilder2,(void**) &m_capture);
 	if (FAILED(hr))
     {
-        LOG(LOG_ERR,"Could not create ICaptureGraphBuilder2\n");
+        LOG_ERROR("Could not create ICaptureGraphBuilder2");
         return false;        
     }
 
@@ -255,7 +255,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 	hr = m_graph->QueryInterface(IID_IMediaControl, (void**) &m_control);    
     if (FAILED(hr))
     {
-        LOG(LOG_ERR,"Could not create IMediaControl\n");
+        LOG_ERROR("Could not create IMediaControl");
         return false;
     }
 
@@ -264,14 +264,14 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = FindCaptureDevice(&m_sourceFilter, dinfo->m_devicePath.c_str());
     if (hr != S_OK)
     {
-        LOG(LOG_ERR, "Could not find source filter %s\n", dinfo->m_devicePath.c_str());
+        LOG_ERROR("Could not find source filter {}", dinfo->m_devicePath.c_str());
         return false;
     }
 
     hr = m_graph->AddFilter(m_sourceFilter, L"Video Capture");
     if (hr != S_OK)
     {
-        LOG(LOG_ERR, "Could add source filter to filter graph (HRESULT=%08X)\n", hr);
+        LOG_ERROR("Could add source filter to filter graph (HRESULT={:08X})", hr);
         return false;
     }
 
@@ -279,13 +279,13 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     IAMStreamConfig *pConfig = NULL;
     const GUID& videoPin = captureOrPreviewPin();
     if (&videoPin == &PIN_CATEGORY_PREVIEW) {
-        LOG(LOG_WARNING, "  [pin override] using PREVIEW pin (OPENPNP_CAPTURE_USE_PREVIEW_PIN=1). MJPEG renegotiation may be less reliable.\n");
+        LOG_WARN("  [pin override] using PREVIEW pin (OPENPNP_CAPTURE_USE_PREVIEW_PIN=1). MJPEG renegotiation may be less reliable.");
     }
 
     hr = m_capture->FindInterface(&videoPin, 0, m_sourceFilter, IID_IAMStreamConfig, (void**)&pConfig);
     if (FAILED(hr))
     {
-        LOG(LOG_ERR,"Could not create IAMStreamConfig\n");
+        LOG_ERROR("Could not create IAMStreamConfig");
         return false;
     }
 
@@ -298,20 +298,20 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = streamConfig->GetNumberOfCapabilities(&iCount, &iSize);
     if (FAILED(hr))
     {
-        LOG(LOG_ERR, "Cannot retrieve device capabilities\n");
+        LOG_ERROR("Cannot retrieve device capabilities");
         return false;
     }
     else
     {
-        LOG(LOG_DEBUG,"PlatformStream::open() reveals %d stream capabilities\n", iCount);
+        LOG_DEBUG("PlatformStream::open() reveals {} stream capabilities", iCount);
     }
 
     // Check the size to make sure we pass in the correct structure.
     if (iSize == sizeof(VIDEO_STREAM_CONFIG_CAPS))
     {
         bool formatSet = false;
-        LOG(LOG_VERBOSE, "Searching for correct frame buffer mode..\n");
-        LOG(LOG_VERBOSE, "Looking for %d %d  %s..\n", width, height, 
+        LOG_TRACE("Searching for correct frame buffer mode..");
+        LOG_TRACE("Looking for {} {}  {}..", width, height, 
             fourCCToString(fourCC).c_str());
         // Use the video capabilities structure.
         for (int iFormat = 0; iFormat < iCount; iFormat++)
@@ -343,7 +343,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                         break;
                     }
 
-                    LOG(LOG_VERBOSE, "  %d x %d %s\n", pVih->bmiHeader.biWidth, 
+                    LOG_TRACE("  {} x {} {}", pVih->bmiHeader.biWidth, 
                         pVih->bmiHeader.biHeight,
                         fourCCToString(format4CC).c_str());
 
@@ -353,7 +353,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                     {
                         streamConfig->SetFormat(pmtConfig);                        
                         formatSet = true;
-                        LOG(LOG_INFO, "Capture format set!\n");
+                        LOG_INFO("Capture format set!");
                         break;
                     }
                 }
@@ -365,13 +365,13 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         }
         if (!formatSet)
         {
-            LOG(LOG_ERR, "Failed to find capture format!\n");
+            LOG_ERROR("Failed to find capture format!");
             return false;
         }        
     }
     else
     {
-        LOG(LOG_ERR,"Could not find video mode: VIDEO_STREAM_CONFIG_CAPS not found\n");
+        LOG_ERROR("Could not find video mode: VIDEO_STREAM_CONFIG_CAPS not found");
         return false;
     }
 
@@ -382,7 +382,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     if (hr != S_OK) 
     {
         // note: this is not an error because some cameras do not support camera control
-        LOG(LOG_WARNING,"Could not create IAMCameraControl\n");
+        LOG_WARN("Could not create IAMCameraControl");
     }
 
     dumpCameraProperties();
@@ -393,14 +393,14 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     if (hr != S_OK) 
     {
         // note: this is not an error, but in inconvenience
-        LOG(LOG_WARNING,"Could not create IAMVideoProcAmp\n");
+        LOG_WARN("Could not create IAMVideoProcAmp");
     }
 
     //create a samplegrabber filter for the device
     hr = CoCreateInstance(CLSID_SampleGrabber, NULL, CLSCTX_INPROC_SERVER,IID_IBaseFilter, (void**)&m_sampleGrabberFilter);
     if (hr < 0)
     {
-        LOG(LOG_ERR,"Could not create sample grabber filter\n");
+        LOG_ERROR("Could not create sample grabber filter");
         return false;        
     }
 
@@ -408,7 +408,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = m_sampleGrabberFilter->QueryInterface(IID_ISampleGrabber, (void**)&m_sampleGrabber);
     if (hr != S_OK)
     {
-        LOG(LOG_ERR,"Could not create ISampleGrabber (HRESULT=%08X)\n", hr);
+        LOG_ERROR("Could not create ISampleGrabber (HRESULT={:08X})", hr);
         return false;
     }
 
@@ -419,7 +419,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = m_graph->AddFilter(m_sampleGrabberFilter, filtername.c_str());
     if (hr < 0)
     {
-        LOG(LOG_ERR,"Could not add ISampleGrabber filter to graph (HRESULT=%08X)\n", hr);
+        LOG_ERROR("Could not add ISampleGrabber filter to graph (HRESULT={:08X})", hr);
         return false;
     }
 
@@ -429,7 +429,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     mt.majortype	= MEDIATYPE_Video;
     if (m_rawMode) {
         mt.subtype = MEDIASUBTYPE_MJPG;
-        LOG(LOG_INFO, "DirectShow: SampleGrabber media type set to MEDIASUBTYPE_MJPG (raw mode)\n");
+        LOG_INFO("DirectShow: SampleGrabber media type set to MEDIASUBTYPE_MJPG (raw mode)");
     } else {
         mt.subtype = MEDIASUBTYPE_RGB24;
     }
@@ -437,7 +437,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = m_sampleGrabber->SetMediaType(&mt);
     if (hr != S_OK)
     {
-        LOG(LOG_ERR,"Could not set the samplegrabber media type to 24-bit RGB\n");
+        LOG_ERROR("Could not set the samplegrabber media type to 24-bit RGB");
         return false;
     }
     
@@ -454,7 +454,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = m_sampleGrabber->SetCallback(m_callbackHandler,0);
     if (hr != S_OK)
     {
-        LOG(LOG_ERR,"Could not set callback on sample grabber (HRESULT=%08X)\n", hr);
+        LOG_ERROR("Could not set callback on sample grabber (HRESULT={:08X})", hr);
         return false;
     }       
 
@@ -470,7 +470,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = CoCreateInstance(CLSID_NullRenderer, NULL, CLSCTX_INPROC_SERVER, IID_IBaseFilter, (void**)(&m_nullRenderer));
     if (FAILED(hr))
     {
-        LOG(LOG_WARNING,"Could not create a NULL renderer - using NULL ptr instead.");
+        LOG_WARN("Could not create a NULL renderer - using NULL ptr instead.");
     }
     else
     {
@@ -478,7 +478,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         hr = m_graph->AddFilter(m_nullRenderer, L"NULLRenderer");
         if (hr < 0)
         {
-            LOG(LOG_ERR,"Could not add NULL Renderer to graph (HRESULT=%08X)\n", hr);
+            LOG_ERROR("Could not add NULL Renderer to graph (HRESULT={:08X})", hr);
             return false;
         }
     }
@@ -494,7 +494,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     hr = m_capture->RenderStream(&videoPin, &MEDIATYPE_Video, m_sourceFilter, m_sampleGrabberFilter, m_nullRenderer);
     if (hr < 0)
     {
-        LOG(LOG_ERR,"Error calling RenderStream (HRESULT=%08X)\n", hr);
+        LOG_ERROR("Error calling RenderStream (HRESULT={:08X})", hr);
         return false;
     }
 
@@ -523,7 +523,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
             uint32_t fps_from_mt = vi->AvgTimePerFrame > 0
                 ? 10000000 / vi->AvgTimePerFrame
                 : 0;
-            LOG(LOG_INFO,
+            LOG_INFO(
                 "Stream config: negotiated format %dx%d %s @ %d fps (AvgTimePerFrame=%d, bitrate=%d)\n",
                 m_width, m_height,
                 fourCCToString(fc).c_str(),
@@ -536,7 +536,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     }
     else
     {
-        LOG(LOG_ERR,
+        LOG_ERROR(
             "Stream config: FAILED to read negotiated media type (hr=0x%08X)\n", hr);
     }
     free(info);
@@ -551,7 +551,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
             uint32_t fpsPre = viPre->AvgTimePerFrame > 0
                 ? 10000000 / viPre->AvgTimePerFrame
                 : 0;
-            LOG(LOG_DEBUG,
+            LOG_DEBUG(
                 "Stream config: pre-Run verification  %dx%d @ %dfps (format confirmed before graph start)\n",
                 viPre->bmiHeader.biWidth, viPre->bmiHeader.biHeight, fpsPre);
             CoTaskMemFree(infoPre->pbFormat);
@@ -559,7 +559,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         delete infoPre;
     }
 
-    LOG(LOG_INFO,"Stream to device %s opened\n", device->m_name.c_str());
+    LOG_INFO("Stream to device {} opened", device->m_name.c_str());
 
     // =================================================================
     // STEP 5: Start the filter graph.
@@ -570,10 +570,10 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     // the "MJPG doesn't stick" bug).  Our fix below re-applies the
     // format AFTER this transition, matching what the C++ PoC does.
     // =================================================================
-    LOG(LOG_INFO,
+    LOG_INFO(
         "Stream config: starting filter graph (camera begins streaming)\n");
     m_control->Run();
-    LOG(LOG_DEBUG,
+    LOG_DEBUG(
         "Stream config: filter graph is now running\n");
 
     // =================================================================
@@ -591,14 +591,14 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     // Part A: re-set FOURCC on the CAPTURE pin via IAMStreamConfig.
     // Part B: force-reconnect the pin via IFilterGraph2::Reconnect().
     // =================================================================
-    LOG(LOG_DEBUG,
+    LOG_DEBUG(
         "Stream config: re-negotiating MJPEG format (post-graph-start workaround for DirectShow MJPEG quirk)\n");
     {
         // --- Part A: find matching format and call SetFormat ---
         IAMStreamConfig *pConfig2 = NULL;
         hr = m_capture->FindInterface(&videoPin, 0,
             m_sourceFilter, IID_IAMStreamConfig, (void**)&pConfig2);
-        LOG(LOG_DEBUG,
+        LOG_DEBUG(
             "Stream config: found %s pin for format re-negotiation (IAMStreamConfig ptr=%p)\n",
                 (&videoPin == &PIN_CATEGORY_PREVIEW) ? "PREVIEW" : "CAPTURE",
             (void*)pConfig2);
@@ -606,7 +606,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         {
             int iCount2 = 0, iSize2 = 0;
             pConfig2->GetNumberOfCapabilities(&iCount2, &iSize2);
-            LOG(LOG_DEBUG,
+            LOG_DEBUG(
                 "Stream config: camera reports %d format capabilities for re-negotiation\n", iCount2);
             for (int iFmt = 0; iFmt < iCount2; iFmt++)
             {
@@ -626,7 +626,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                             pVih->bmiHeader.biHeight == height && fc == fourCC)
                         {
                             hr = pConfig2->SetFormat(pMt);
-                            LOG(LOG_DEBUG,
+                            LOG_DEBUG(
                                 "Stream config: SetFormat(%dx%d %s) -> %s (hr=0x%08X)\n",
                                 width, height, fourCCToString(fourCC).c_str(),
                                 SUCCEEDED(hr) ? "OK" : "VFW_E_INVALIDMEDIATYPE (pin needs reconnect)", hr);
@@ -654,10 +654,10 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                     SUCCEEDED(pin->ConnectedTo(&connectedTo)) &&
                     connectedTo != NULL)
                 {
-                    LOG(LOG_DEBUG,
+                    LOG_DEBUG(
                         "Stream config: reconnecting output pin to re-negotiate format\n");
                     hr = m_graph->Reconnect(pin);
-                    LOG(LOG_DEBUG,
+                    LOG_DEBUG(
                         "Stream config: Reconnect -> %s (hr=0x%08X)\n",
                         SUCCEEDED(hr) ? "OK, format re-negotiated"
                                       : "VFW_E_INVALIDMEDIATYPE (no compatible format found)", hr);
@@ -672,7 +672,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         }
         else
         {
-            LOG(LOG_ERR,
+            LOG_ERROR(
                 "Stream config: EnumPins failed, cannot reconnect output pin for format re-negotiation\n");
         }
     }
@@ -689,7 +689,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                 : 0;
             m_width = viPost->bmiHeader.biWidth;
             m_height = viPost->bmiHeader.biHeight;
-            LOG(LOG_INFO,
+            LOG_INFO(
                 "Stream config: final format  %dx%d @ %dfps  — ready for capture\n",
                 m_width, m_height, fpsPost);
             CoTaskMemFree(infoPost->pbFormat);
@@ -706,7 +706,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     // rather than deliver unexpectedly-sized frames.
     // ──────────────────────────────────────────────────────────────────
     if (m_width != width || m_height != height) {
-        LOG(LOG_ERR,
+        LOG_ERROR(
             "  [FATAL] Resolution mismatch: requested %dx%d but DirectShow negotiated %dx%d\n"
             "  The camera driver silently overrode the requested format and the\n"
             "  MJPG-fix re-negotiation also failed. The stream will NOT open.\n",
@@ -781,45 +781,45 @@ void PlatformStream::dumpCameraProperties()
         if (m_camControl->GetRange(CameraControl_Exposure, &mmin, &mmax,
             &delta, &defaultValue, &flags) == S_OK)
         {
-            LOG(LOG_INFO, "Exposure min     : %2.3f seconds (%d integer)\n", std::pow(2.0f, (float)mmin), mmin);
-            LOG(LOG_INFO, "Exposure max     : %2.3f seconds (%d integer)\n", std::pow(2.0f, (float)mmax), mmax);
-            LOG(LOG_INFO, "Exposure step    : %d (integer)\n", delta);
-            LOG(LOG_INFO, "Exposure default : %2.3f seconds\n", pow(2.0f, (float)defaultValue));		
-            LOG(LOG_INFO, "Flags            : %08X\n", flags);
+            LOG_INFO("Exposure min     : {:.3f} seconds ({} integer)", std::pow(2.0f, (float)mmin), mmin);
+            LOG_INFO("Exposure max     : {:.3f} seconds ({} integer)", std::pow(2.0f, (float)mmax), mmax);
+            LOG_INFO("Exposure step    : {} (integer)", delta);
+            LOG_INFO("Exposure default : {:.3f} seconds", pow(2.0f, (float)defaultValue));		
+            LOG_INFO("Flags            : {:08X}", flags);
         }
         else
         {
-            LOG(LOG_INFO, "Could not get exposure range information\n");
+            LOG_INFO("Could not get exposure range information");
         }
 
         //query focus
         if (m_camControl->GetRange(CameraControl_Focus, &mmin, &mmax,
             &delta, &defaultValue, &flags) == S_OK)
         {
-            LOG(LOG_INFO, "Focus min     : %d integer\n", mmin);
-            LOG(LOG_INFO, "Focus max     : %d integer\n", mmax);
-            LOG(LOG_INFO, "Focus step    : %d integer\n", delta);
-            LOG(LOG_INFO, "Focus default : %d integer\n", defaultValue);
-            LOG(LOG_INFO, "Flags         : %08X\n", flags);
+            LOG_INFO("Focus min     : {} integer", mmin);
+            LOG_INFO("Focus max     : {} integer", mmax);
+            LOG_INFO("Focus step    : {} integer", delta);
+            LOG_INFO("Focus default : {} integer", defaultValue);
+            LOG_INFO("Flags         : {:08X}", flags);
         }
         else
         {
-            LOG(LOG_INFO, "Could not get focus range information\n");
+            LOG_INFO("Could not get focus range information");
         }        
 
         // query zoom
         if (m_camControl->GetRange(CameraControl_Zoom, &mmin, &mmax,
             &delta, &defaultValue, &flags) == S_OK)
         {
-            LOG(LOG_INFO, "Zoom min     : %d integer\n", mmin);
-            LOG(LOG_INFO, "Zoom max     : %d integer\n", mmax);
-            LOG(LOG_INFO, "Zoom step    : %d integer\n", delta);
-            LOG(LOG_INFO, "Zoom default : %d integer\n", defaultValue);
-            LOG(LOG_INFO, "Flags         : %08X\n", flags);
+            LOG_INFO("Zoom min     : {} integer", mmin);
+            LOG_INFO("Zoom max     : {} integer", mmax);
+            LOG_INFO("Zoom step    : {} integer", delta);
+            LOG_INFO("Zoom default : {} integer", defaultValue);
+            LOG_INFO("Flags         : {:08X}", flags);
         }
         else
         {
-            LOG(LOG_INFO, "Could not get Zoom range information\n");
+            LOG_INFO("Could not get Zoom range information");
         }         
 
 #if 0
@@ -1078,7 +1078,7 @@ bool PlatformStream::getAutoProperty(uint32_t propID, bool &enabled)
     static_assert(CameraControl_Flags_Auto == VideoProcAmp_Flags_Auto, "Boolean flags dont match - code change needed!");
     //static_assert(CameraControl_Flags_Manual == VideoProcAmp_Flags_Manual, "Boolean flags dont match - code change needed!");
 
-    //LOG(LOG_VERBOSE, "PlatformStream::getAutoProperty called\n");
+    //LOG_TRACE("PlatformStream::getAutoProperty called");
 
     long value, flags;
     if (PlatformStream::getDSProperty(propID, value, flags))
@@ -1096,7 +1096,7 @@ void PlatformStream::submitBuffer(const uint8_t *ptr, size_t bytes)
     
     if (m_frameBuffer.size() == 0)
     {
-        LOG(LOG_ERR,"Stream::m_frameBuffer size is 0 - cant store frame buffers!\n");
+        LOG_ERROR("Stream::m_frameBuffer size is 0 - cant store frame buffers!");
     }
 
     // Generate warning every 100 frames if the frame buffer is not
@@ -1105,7 +1105,7 @@ void PlatformStream::submitBuffer(const uint8_t *ptr, size_t bytes)
     const uint32_t wantSize = m_width*m_height*3;
     if ((bytes != wantSize) && ((m_frames % 100) == 0))
     {
-        LOG(LOG_WARNING, "Warning: captureFrame received incorrect buffer size (got %d want %d)\n", bytes, wantSize);
+        LOG_WARN("Warning: captureFrame received incorrect buffer size (got {} want {})", bytes, wantSize);
     }
 
     if (bytes <= m_frameBuffer.size())
@@ -1144,7 +1144,7 @@ HRESULT PlatformStream::AddToRot(IUnknown *pUnkGraph, DWORD *pdwRegister)
 
     if (FAILED(GetRunningObjectTable(0, &pROT))) 
     {
-        LOG(LOG_DEBUG,"AddToRot failed to get running object table\n");
+        LOG_DEBUG("AddToRot failed to get running object table");
         return E_FAIL;
     }
     
@@ -1165,11 +1165,11 @@ HRESULT PlatformStream::AddToRot(IUnknown *pUnkGraph, DWORD *pdwRegister)
         hr = pROT->Register(ROTFLAGS_REGISTRATIONKEEPSALIVE, pUnkGraph,
             pMoniker, pdwRegister);
         pMoniker->Release();
-        LOG(LOG_DEBUG,"Graph registered in running object table\n", hr);
+        LOG_DEBUG("Graph registered in running object table", hr);
     }
     else
     {
-        LOG(LOG_DEBUG,"AddToRot failed to register graph (HRESULT=%08X)\n", hr);
+        LOG_DEBUG("AddToRot failed to register graph (HRESULT={:08X})", hr);
     }
     pROT->Release();
     

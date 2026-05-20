@@ -6,7 +6,8 @@
       "Bash(where cmake *)",
       "Bash(where cl *)",
       "Bash(./availability_test.exe)",
-      "Bash(nmake)"
+      "Bash(nmake)",
+      "Bash(grep -rn '\\\\\\\\n\"' --include='*.cpp' --include='*.h' --include='*.mm' common/ win/ linux/ mac/)"
     ]
   }
 }

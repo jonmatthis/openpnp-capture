@@ -52,7 +52,7 @@ class PlatformStreamHelper
 public:
     PlatformStreamHelper(int fd) : m_fd(fd)
     {
-        LOG(LOG_DEBUG, "PlatformStreamHelper created.\n");
+        LOG_DEBUG("PlatformStreamHelper created.");
     }
 
     virtual ~PlatformStreamHelper()
@@ -62,7 +62,7 @@ public:
             streamOff();
             unmapAndDeleteBuffers();
         }
-        LOG(LOG_DEBUG, "PlatformStreamHelper deleted.\n");
+        LOG_DEBUG("PlatformStreamHelper deleted.");
     }
 
     /** remove the memory mapped buffers from the system */

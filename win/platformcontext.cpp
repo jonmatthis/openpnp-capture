@@ -56,11 +56,11 @@ PlatformContext::PlatformContext() : Context()
         // This might happen when another part of the program
         // as already called CoInitializeEx.
         // and we can carry on without problems... 
-        LOG(LOG_WARNING, "PlatformContext::CoInitializeEx failed (HRESULT = %08X)!\n", hr);
+        LOG_WARN("PlatformContext::CoInitializeEx failed (HRESULT = {:08X})!", hr);
     }
     else
     {
-        LOG(LOG_DEBUG, "PlatformContext created\n");
+        LOG_DEBUG("PlatformContext created");
     }
 
     enumerateDevices();
@@ -79,7 +79,7 @@ bool PlatformContext::enumerateDevices()
 	IMoniker*			moniker = nullptr;
 	IPropertyBag*		pbag = nullptr;
 
-    LOG(LOG_DEBUG, "Enumerating devices\n");
+    LOG_DEBUG("Enumerating devices");
 
     m_devices.clear();
 
@@ -87,12 +87,12 @@ bool PlatformContext::enumerateDevices()
 	HRESULT hr = CoCreateInstance(CLSID_SystemDeviceEnum, NULL,CLSCTX_INPROC_SERVER,IID_ICreateDevEnum,(void**) &dev_enum);
 	if ((hr != S_OK) || (dev_enum == nullptr))
     {
-        LOG(LOG_CRIT, "Could not create ICreateDevEnum object\n");
+        LOG_CRIT("Could not create ICreateDevEnum object");
         return false;
     }
     else
     {
-        LOG(LOG_DEBUG, "ICreateDevEnum created\n");
+        LOG_DEBUG("ICreateDevEnum created");
     }
 
     ScopedComPtr<ICreateDevEnum> devEnum(dev_enum);
@@ -101,12 +101,12 @@ bool PlatformContext::enumerateDevices()
 	if (hr == S_FALSE)
     {
         // no devices found!
-        LOG(LOG_INFO, "No devices found\n");
+        LOG_INFO("No devices found");
         return true;
     }
     if (hr != S_OK)
     {
-        LOG(LOG_CRIT, "Could not create class enumerator object\n");
+        LOG_CRIT("Could not create class enumerator object");
         return false;
     }
 
@@ -145,7 +145,7 @@ bool PlatformContext::enumerateDevices()
             }
             else
             {
-                LOG(LOG_ERR, "Could not generate device name for device!\n");
+                LOG_ERROR("Could not generate device name for device!");
             }
 
             hr = pbag->Read(L"DevicePath", &name, 0);
@@ -154,18 +154,18 @@ bool PlatformContext::enumerateDevices()
                 info->m_devicePath = std::wstring(name.bstrVal);
             }
             else {
-                LOG(LOG_WARNING, "     device path not found! fallback to using device index...\n");
+                LOG_WARN("     device path not found! fallback to using device index...");
                 info->m_devicePath = std::to_wstring(num_devices);
             }
 
             info->m_uniqueID.append(" ");
             info->m_uniqueID.append(wstringToString(info->m_devicePath));
-            LOG(LOG_DEBUG, "     -> PATH %s\n", wstringToString(info->m_devicePath).c_str());
+            LOG_TRACE("     -> PATH {}", wstringToString(info->m_devicePath).c_str());
 
             enumerateFrameInfo(moniker, info);
             m_devices.push_back(info);
 
-            LOG(LOG_DEBUG, "ID %d -> %s\n", num_devices, info->m_name.c_str());
+            LOG_DEBUG("ID {} -> {}", num_devices, info->m_name.c_str());
 
             VariantClear(&name);
 
@@ -301,12 +301,12 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
     IEnumPins   *pEnum = NULL;
     IPin        *pPin  = NULL;
 
-    LOG(LOG_DEBUG, "enumerateFrameInfo() called\n");
+    LOG_TRACE("enumerateFrameInfo() called");
 
     HRESULT hr = moniker->BindToObject(0, 0, IID_IBaseFilter, (void**)&pCap);
     if (!SUCCEEDED(hr))
     {
-        LOG(LOG_ERR, "No frame information: BindToObject failed.\n");
+        LOG_ERROR("No frame information: BindToObject failed.");
         return false;
     }
 
@@ -315,17 +315,17 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
     hr = baseFilter->EnumPins(&pEnum);
     if (FAILED(hr))
     {
-        LOG(LOG_ERR, "No frame information: EnumPins failed.\n");
+        LOG_ERROR("No frame information: EnumPins failed.");
         return false;
     }
     ScopedComPtr<IEnumPins> pinEnum(pEnum);
     if (FindPinByCategory(pCap, PINDIR_OUTPUT, PIN_CATEGORY_CAPTURE, &pPin) == S_OK)
     {
-        LOG(LOG_DEBUG, "Capture pin found!\n");
+        LOG_TRACE("Capture pin found!");
     }
     else
     {
-        LOG(LOG_ERR, "Could not find capture pin!\n");
+        LOG_ERROR("Could not find capture pin!");
         return false;
     }
 
@@ -335,7 +335,7 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
     IAMStreamConfig *pConfig = NULL;
     if (capturePin->QueryInterface(IID_IAMStreamConfig, (void**)&pConfig) != S_OK)
     {
-        LOG(LOG_ERR, "Could not create IAMStreamConfig interface!\n");
+        LOG_ERROR("Could not create IAMStreamConfig interface!");
         return false;
     }
 
@@ -344,7 +344,7 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
     int iCount = 0, iSize = 0;
     hr = pConfig->GetNumberOfCapabilities(&iCount, &iSize);
 
-    LOG(LOG_DEBUG,"Stream has %d capabilities.\n", iCount);
+    LOG_TRACE("Stream has {} capabilities.", iCount);
 
     // Check the size to make sure we pass in the correct structure.
     if (iSize == sizeof(VIDEO_STREAM_CONFIG_CAPS))
@@ -397,7 +397,7 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
 
                             std::string fourCCString = fourCCToString(newFrameInfo.fourcc);
 
-                            LOG(LOG_DEBUG, "%d x %d  %d fps  %d bpp FOURCC=%s\n", newFrameInfo.width, newFrameInfo.height,
+                            LOG_TRACE("{} x {}  {} fps  {} bpp FOURCC={}", newFrameInfo.width, newFrameInfo.height,
                                 newFrameInfo.fps, newFrameInfo.bpp, fourCCString.c_str());
 
                             info->m_formats.push_back(newFrameInfo);
@@ -515,7 +515,7 @@ bool PlatformContext::isDeviceAvailable(CapDeviceID id)
 
     if (!found)
     {
-        LOG(LOG_INFO, "Device %s not found in current DirectShow enumeration\n",
+        LOG_INFO("Device {} not found in current DirectShow enumeration",
             info->m_name.c_str());
         return false;
     }

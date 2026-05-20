@@ -50,10 +50,10 @@ public:
 
     virtual ~platformDeviceInfo()
     {
-        //LOG(LOG_DEBUG, "%s\n", CFStringGetCStringPtr(CFCopyTypeIDDescription(CFGetTypeID(m_captureDevice)),kCFStringEncodingUTF8));
+        //LOG_DEBUG( "%s", CFStringGetCStringPtr(CFCopyTypeIDDescription(CFGetTypeID(m_captureDevice)),kCFStringEncodingUTF8));
         if (m_captureDevice != nullptr)
         {
-            LOG(LOG_DEBUG, "m_captureDevice released\n");
+            LOG_DEBUG( "m_captureDevice released");
             CFRelease(m_captureDevice);
         }
         #if 0

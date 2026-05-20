@@ -147,7 +147,6 @@ endif()
 add_library(openpnp-capture ${LIBRARY_TYPE} common/libmain.cpp
                                            common/context.cpp
                                            common/logging.cpp
-                                           common/logging_v2.cpp
                                            common/stream.cpp
                                            common/mjpeghelper.cpp)
 

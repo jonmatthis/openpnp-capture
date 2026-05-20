@@ -278,31 +278,32 @@ Run 'bootstrap_linux.sh'. Run make.
 
 # Logging
 
-openpnp-capture uses [spdlog](https://github.com/gabime/spdlog) for structured, zero-cost logging. Two logging APIs coexist:
+openpnp-capture uses [spdlog](https://github.com/gabime/spdlog) for structured, zero-cost logging.
 
-| Header | Style | Cost | When to use |
-|--------|-------|------|-------------|
-| `common/logging.h` | printf-style `LOG(LEVEL, fmt, ...)` | Runtime filter | Legacy code, backward compat |
-| `common/logging_v2.h` | `LOG_TRACE/DEBUG/INFO/WARN/ERROR(...)` with `{}` formatting | Zero-cost (compile-time strip) | New code, hot paths |
+## Header
 
-## Levels (new API)
+| Header | Style | Cost |
+|--------|-------|------|
+| `common/logging.h` | `LOG_TRACE/DEBUG/INFO/WARN/ERROR/CRIT(...)` with `{}` formatting | Zero-cost (compile-time strip) |
 
-| Macro | Level | Typical use |
-|-------|-------|-------------|
-| `LOG_TRACE(...)` | 0 | Per-frame loop logs, warmup loops |
-| `LOG_DEBUG(...)` | 1 | Under-the-hood details, observability |
-| `LOG_INFO(...)` | 2 | Standard info users want every run |
-| `LOG_WARN(...)` | 3 | Something weird but not an error |
-| `LOG_ERROR(...)` | 4 | Something went wrong |
+## Macros
 
-## Structured formatting
+| Macro | spdlog level | Typical use |
+|-------|-------------|-------------|
+| `LOG_TRACE(...)` | trace | Per-frame loop logs, warmup loops, format enumeration |
+| `LOG_DEBUG(...)` | debug | Under-the-hood details, observability |
+| `LOG_INFO(...)` | info | Standard info users want every run |
+| `LOG_WARN(...)` | warn | Something weird but not an error |
+| `LOG_ERROR(...)` | err | Something went wrong |
+| `LOG_CRIT(...)` | critical | Unrecoverable, can't continue |
 
-Uses fmtlib `{}` syntax — no more printf format specifier bugs:
+## Output format
 
-```cpp
-LOG_INFO("stream opened: device={} {}x{} format={}", device_id, width, height, fourcc);
-LOG_WARN("frame buffer mismatch: got={} expected={} frame={}", bytes, wantSize, m_frames);
 ```
+>>  message |  LEVEL    |  openpnp-capture |  file.cpp:line |  YYYY-MM-DDTHH:MM:SS.mmm |  PID:pid |  TID:tid
+```
+
+The logger name `openpnp-capture` identifies the package when embedded in larger applications.
 
 ## Compile-time level stripping
 

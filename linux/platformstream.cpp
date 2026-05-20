@@ -81,17 +81,17 @@ bool PlatformStreamHelper::createAndMapBuffers(uint32_t nBuffers)
 
     if (xioctl(m_fd, VIDIOC_REQBUFS, &req) == -1) 
     {
-        LOG(LOG_ERR, "createAndMapBuffers failed - no memory mapping support.\n");
+        LOG_ERROR("createAndMapBuffers failed - no memory mapping support.");
         return false;
     }
 
     if (req.count < 2) 
     {
-        LOG(LOG_ERR, "createAndMapBuffers: need more than 1 buffer.\n");
+        LOG_ERROR("createAndMapBuffers: need more than 1 buffer.");
         return false;
     }
 
-    LOG(LOG_DEBUG, "Reserving %d mmap buffers\n", req.count);
+    LOG_DEBUG("Reserving {} mmap buffers", req.count);
 
     m_buffers.resize(req.count);
 
@@ -107,7 +107,7 @@ bool PlatformStreamHelper::createAndMapBuffers(uint32_t nBuffers)
 
         if (xioctl(m_fd, VIDIOC_QUERYBUF, &buf) == -1)
         {
-            LOG(LOG_ERR, "createAndMapBuffers: VIDIOC_QUERYBUF failed.\n");
+            LOG_ERROR("createAndMapBuffers: VIDIOC_QUERYBUF failed.");
             return false;
         }
 
@@ -117,12 +117,12 @@ bool PlatformStreamHelper::createAndMapBuffers(uint32_t nBuffers)
 
         if (m_buffers[b].start == MAP_FAILED)
         {
-            LOG(LOG_ERR, "createAndMapBuffers: mmap failed.\n");
+            LOG_ERROR("createAndMapBuffers: mmap failed.");
             return false;
         }
         else
         {
-            LOG(LOG_DEBUG, "Created mmap buffer of %d bytes\n", buf.length);
+            LOG_DEBUG("Created mmap buffer of {} bytes", buf.length);
         }
 
     }
@@ -138,7 +138,7 @@ void PlatformStreamHelper::unmapAndDeleteBuffers()
     }
 
     m_buffers.clear();
-    LOG(LOG_DEBUG, "Mmap buffers deleted\n");
+    LOG_DEBUG("Mmap buffers deleted");
 }
 
 bool PlatformStreamHelper::queueAllBuffers()
@@ -159,7 +159,7 @@ bool PlatformStreamHelper::queueAllBuffers()
 
         if (xioctl(m_fd, VIDIOC_QBUF, &buf) == -1)
         {
-            LOG(LOG_ERR,"VIDIOC_QBUF failed (errno=%d)\n", errno);
+            LOG_ERROR("VIDIOC_QBUF failed (errno={})", errno);
             return false;
         }
     }
@@ -172,11 +172,11 @@ bool PlatformStreamHelper::streamOn()
 
     if (xioctl(m_fd, VIDIOC_STREAMON, &bufferType) == -1)
     {
-        LOG(LOG_ERR,"VIDIOC_STREAMON failed (errno=%d)\n", errno);
+        LOG_ERROR("VIDIOC_STREAMON failed (errno={})", errno);
         return false;
     }
 
-    LOG(LOG_DEBUG, "stream is On\n");
+    LOG_DEBUG("stream is On");
 
     return true;
 }
@@ -186,11 +186,11 @@ bool PlatformStreamHelper::streamOff()
     v4l2_buf_type bufferType = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (xioctl(m_fd, VIDIOC_STREAMOFF, &bufferType) == -1)
     {
-        LOG(LOG_ERR,"VIDIOC_STREAMOFF failed (errno=%d)\n", errno);
+        LOG_ERROR("VIDIOC_STREAMOFF failed (errno={})", errno);
         return false;
     }
 
-    LOG(LOG_DEBUG, "stream is Off\n");
+    LOG_DEBUG("stream is Off");
 
     return true;
 }
@@ -206,7 +206,7 @@ void captureThreadFunction(PlatformStream *stream, int fd, size_t bufferSizeByte
         return;
     }
 
-    LOG(LOG_DEBUG, "capture thread running (deviceHandle = %08X) ...\n", fd);
+    LOG_DEBUG("capture thread running (deviceHandle = {:08X}) ...", fd);
 
     // create local frame buffer
     std::vector<uint8_t> buffer(bufferSizeBytes);
@@ -220,13 +220,13 @@ void captureThreadFunction(PlatformStream *stream, int fd, size_t bufferSizeByte
         ssize_t actualBytesRead = ::read(fd, &buffer[0], bufferSizeBytes);
         if (actualBytesRead < 0)
         {
-            LOG(LOG_DEBUG, "capture thread exited (errno %d).\n", errno);
+            LOG_DEBUG("capture thread exited (errno {}).", errno);
             return; //exit thread
         }
 
         // read will only return complete buffers
         stream->threadSubmitBuffer(&buffer[0], actualBytesRead);
-        LOG(LOG_INFO, "yay\n");
+        LOG_INFO("yay");
     }
 }
 
@@ -242,7 +242,7 @@ void captureThreadFunctionAsync(PlatformStream *stream, int fd, size_t bufferSiz
         return;
     }
 
-    LOG(LOG_DEBUG, "captureThreadFunctionAsync started\n");
+    LOG_DEBUG("captureThreadFunctionAsync started");
 
     PlatformStreamHelper *pHelper = new PlatformStreamHelper(fd);
     ScopedPtr<PlatformStreamHelper> helper(pHelper);
@@ -282,12 +282,12 @@ void captureThreadFunctionAsync(PlatformStream *stream, int fd, size_t bufferSiz
             {
                 continue;
             }
-            LOG(LOG_ERR,"Select failed (errno=%d)\n", errno);
+            LOG_ERROR("Select failed (errno={})", errno);
             return;
         }
         else if (result == 0)
         {
-            LOG(LOG_ERR,"Select timeout\n");
+            LOG_ERROR("Select timeout");
             return;
         }
 
@@ -304,7 +304,7 @@ void captureThreadFunctionAsync(PlatformStream *stream, int fd, size_t bufferSiz
             switch (errno) 
             {
             case EAGAIN:
-                LOG(LOG_DEBUG, "VIDIOC_DQBUF returned EAGAIN\n");
+                LOG_DEBUG("VIDIOC_DQBUF returned EAGAIN");
                 //FIXME: what to do here?!?
                 continue;
 
@@ -314,7 +314,7 @@ void captureThreadFunctionAsync(PlatformStream *stream, int fd, size_t bufferSiz
                 /* fall through */
 
             default:
-                LOG(LOG_ERR, "VIDIOC_DQBUF error\n");
+                LOG_ERROR("VIDIOC_DQBUF error");
                 return;
             }
         }
@@ -325,7 +325,7 @@ void captureThreadFunctionAsync(PlatformStream *stream, int fd, size_t bufferSiz
         // re-queue the buffer
         if (xioctl(fd, VIDIOC_QBUF, &buf) == -1)
         {
-            LOG(LOG_ERR, "VIDIOC_DQBUF error\n");
+            LOG_ERROR("VIDIOC_DQBUF error");
             return;    
         }
     } // while  
@@ -334,7 +334,7 @@ void captureThreadFunctionAsync(PlatformStream *stream, int fd, size_t bufferSiz
     // by the scoped pointer will automatically
     // turn off streaming and remove the
     // memory mapped buffers from the system.
-    LOG(LOG_DEBUG, "captureThreadFunctionAsync exited\n");
+    LOG_DEBUG("captureThreadFunctionAsync exited");
 }
 
 // **********************************************************************
@@ -356,7 +356,7 @@ PlatformStream::~PlatformStream()
 
 void PlatformStream::close()
 {
-    LOG(LOG_INFO, "closing stream\n");
+    LOG_INFO("closing stream");
 
     m_owner = nullptr;
     m_width = 0;
@@ -388,26 +388,26 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 {
     if (m_isOpen)
     {
-        LOG(LOG_INFO,"open() was called on an active stream.\n");
+        LOG_INFO("open() was called on an active stream.");
         close();
     }
 
     if (owner == nullptr)
     {
-        LOG(LOG_ERR,"open() was with owner=NULL!\n");        
+        LOG_ERROR("open() was with owner=NULL!");        
         return false;
     }
 
     if (device == nullptr)
     {
-        LOG(LOG_ERR,"open() was with device=NULL!\n");
+        LOG_ERROR("open() was with device=NULL!");
         return false;
     }
 
     platformDeviceInfo *dinfo = dynamic_cast<platformDeviceInfo*>(device);
     if (dinfo == NULL)
     {
-        LOG(LOG_CRIT, "Could not cast deviceInfo* to platfromDeviceInfo*!");
+        LOG_CRIT("Could not cast deviceInfo* to platfromDeviceInfo*!");
         return false;
     }
 
@@ -419,7 +419,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     m_deviceHandle = ::open(dinfo->m_devicePath.c_str(), O_RDWR /* required */ | O_NONBLOCK);
     if (m_deviceHandle < 0)
     {
-        LOG(LOG_CRIT, "Could not open device %s (errno = %d)\n", dinfo->m_devicePath.c_str(), errno);
+        LOG_CRIT("Could not open device {} (errno = {})", dinfo->m_devicePath.c_str(), errno);
         close();
         return false;
     }
@@ -440,7 +440,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
     if (xioctl(m_deviceHandle, VIDIOC_S_FMT, &m_fmt) == -1)
     {
-        LOG(LOG_CRIT, "Could set the frame buffer format (errno = %d)\n", errno);
+        LOG_CRIT("Could set the frame buffer format (errno = {})", errno);
         close();
         return false;
     }
@@ -450,15 +450,15 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
 
     if (xioctl(m_deviceHandle, VIDIOC_G_FMT, &m_fmt) == -1)
     {
-        LOG(LOG_CRIT, "Could not query default format (errno = %d)\n", errno);
+        LOG_CRIT("Could not query default format (errno = {})", errno);
         close();
         return false;
     }
 
-    LOG(LOG_INFO, "Format buffer type: %d\n", m_fmt.type);
+    LOG_INFO("Format buffer type: {}", m_fmt.type);
     if (m_fmt.type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
     {
-        LOG(LOG_ERR, "Buffer type (%d) not supported!\n", m_fmt.type);
+        LOG_ERROR("Buffer type ({}) not supported!", m_fmt.type);
         close();
         return false;
     }
@@ -466,10 +466,10 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     m_width = m_fmt.fmt.pix.width;
     m_height = m_fmt.fmt.pix.height;
 
-    LOG(LOG_INFO, "Width  = %d pixels\n", m_fmt.fmt.pix.width);
-    LOG(LOG_INFO, "Height = %d pixels\n", m_fmt.fmt.pix.height);
-    LOG(LOG_INFO, "FOURCC = %s\n", fourCCToString(m_fmt.fmt.pix.pixelformat).c_str());
-    LOG(LOG_INFO, "FPS    = %d\n", fps);
+    LOG_INFO("Width  = {} pixels", m_fmt.fmt.pix.width);
+    LOG_INFO("Height = {} pixels", m_fmt.fmt.pix.height);
+    LOG_INFO("FOURCC = {}", fourCCToString(m_fmt.fmt.pix.pixelformat).c_str());
+    LOG_INFO("FPS    = {}", fps);
 
     // set the desired frame rate
     v4l2_streamparm sparam;
@@ -479,7 +479,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     sparam.parm.capture.timeperframe.denominator = fps;
     if (xioctl(m_deviceHandle, VIDIOC_S_PARM, &sparam) == -1)
     {
-        LOG(LOG_CRIT, "Could not set the frame rate (errno = %d)\n", errno);
+        LOG_CRIT("Could not set the frame rate (errno = {})", errno);
         close();
         return false;
     }    
@@ -569,7 +569,7 @@ void PlatformStream::threadSubmitBuffer(void *ptr, size_t bytes)
             if (m_rawMode) {
                 static bool loggedRawMode = false;
                 if (!loggedRawMode) {
-                    LOG(LOG_INFO, "V4L2: raw mode active, skipping MJPEG decode in threadSubmitBuffer\n");
+                    LOG_INFO("V4L2: raw mode active, skipping MJPEG decode in threadSubmitBuffer");
                     loggedRawMode = true;
                 }
                 submitRawBuffer((uint8_t*)ptr, bytes);
@@ -601,7 +601,7 @@ void PlatformStream::threadSubmitBuffer(void *ptr, size_t bytes)
             }
             break;
         default:
-            LOG(LOG_DEBUG, "ThreadSubmitBuffer: unsupported format %s (%08X)\n", fourCCToString(m_fmt.fmt.pix.pixelformat).c_str(),
+            LOG_DEBUG("ThreadSubmitBuffer: unsupported format {} ({:08X})", fourCCToString(m_fmt.fmt.pix.pixelformat).c_str(),
                 m_fmt.fmt.pix.pixelformat);
             break;
         }        
@@ -633,7 +633,7 @@ bool PlatformStream::setFrameRate(uint32_t fps)
 
     if (xioctl(m_deviceHandle, VIDIOC_S_PARM, &param) == -1)
     {
-        LOG(LOG_ERR,"setFrameRate failed on VIDIOC_S_PARM (errno %d)\n", errno);
+        LOG_ERROR("setFrameRate failed on VIDIOC_S_PARM (errno {})", errno);
         return false;
     }
 
@@ -702,7 +702,7 @@ bool PlatformStream::setProperty(uint32_t propID, int32_t value)
     ctrl.value = value;
     if (xioctl(m_deviceHandle, VIDIOC_S_CTRL, &ctrl)==-1)
     {
-        LOG(LOG_ERR,"setProperty (ID=%d) failed on VIDIOC_S_CTRL (errno %d)\n", propID, errno);
+        LOG_ERROR("setProperty (ID={}) failed on VIDIOC_S_CTRL (errno {})", propID, errno);
         return false;        
     }
     return true;
@@ -741,7 +741,7 @@ bool PlatformStream::setAutoProperty(uint32_t propID, bool enabled)
 
     if (xioctl(m_deviceHandle, VIDIOC_S_CTRL, &ctrl)==-1)
     {
-        LOG(LOG_ERR,"setAutoProperty (ID=%d) failed on VIDIOC_S_CTRL (errno %d)\n", propID, errno);
+        LOG_ERROR("setAutoProperty (ID={}) failed on VIDIOC_S_CTRL (errno {})", propID, errno);
         return false;    
     }
     return true;    
@@ -802,7 +802,7 @@ bool PlatformStream::getPropertyLimits(uint32_t propID, int32_t *emin, int32_t *
 
     if (xioctl(m_deviceHandle, VIDIOC_QUERYCTRL, &ctrl) == -1)
     {
-        LOG(LOG_ERR,"getPropertyLimits (ID=%d) failed on VIDIOC_QUERYCTRL (errno %d)\n", propID, errno);
+        LOG_ERROR("getPropertyLimits (ID={}) failed on VIDIOC_QUERYCTRL (errno {})", propID, errno);
         return false;
     }
     *emin = ctrl.minimum;
@@ -860,7 +860,7 @@ bool PlatformStream::getProperty(uint32_t propID, int32_t &value)
 
     if (xioctl(m_deviceHandle, VIDIOC_G_CTRL, &ctrl)==-1)
     {
-        LOG(LOG_ERR,"getProperty (ID=%d) failed on VIDIOC_G_CTRL (errno %d)\n", propID, errno);
+        LOG_ERROR("getProperty (ID={}) failed on VIDIOC_G_CTRL (errno {})", propID, errno);
         return false;        
     }
 
@@ -894,7 +894,7 @@ bool PlatformStream::getAutoProperty(uint32_t propID, bool &enabled)
 
     if (xioctl(m_deviceHandle, VIDIOC_G_CTRL, &ctrl)==-1)
     {
-        LOG(LOG_ERR,"getAutoProperty (ID=%d) failed on VIDIOC_G_CTRL (errno %d)\n", propID, errno);
+        LOG_ERROR("getAutoProperty (ID={}) failed on VIDIOC_G_CTRL (errno {})", propID, errno);
         return false;        
     }
 

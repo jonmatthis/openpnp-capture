@@ -44,15 +44,15 @@ Context* createPlatformContext()
 PlatformContext::PlatformContext() :
     Context()
 {
-    LOG(LOG_DEBUG, "Platform context created\n");
+    LOG_DEBUG( "Platform context created");
     if ([AVCaptureDevice respondsToSelector:@selector(authorizationStatusForMediaType:)]) {
         cameraPermissionReceived = 0;
         if ([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo] == AVAuthorizationStatusAuthorized) {
-            LOG(LOG_DEBUG, "Already have camera permission\n");
+            LOG_DEBUG( "Already have camera permission");
             cameraPermissionReceived = 1;
         }
         else {
-            LOG(LOG_INFO, "Requesting permission, bundle path for Info.plist: %s\n", [[[NSBundle mainBundle] bundlePath] UTF8String]);
+            LOG_INFO( "Requesting permission, bundle path for Info.plist: {}", [[[NSBundle mainBundle] bundlePath] UTF8String]);
             [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL granted) {
                 if (granted) {
                     cameraPermissionReceived = 1;
@@ -60,9 +60,9 @@ PlatformContext::PlatformContext() :
                     cameraPermissionReceived = -1;
                 }
                 if (granted) {
-                    LOG(LOG_INFO, "Permission granted\n");
+                    LOG_INFO( "Permission granted");
                 } else {
-                    LOG(LOG_WARNING, "Failed to get permission\n");
+                    LOG_WARN( "Failed to get permission");
                 }
             } ];
             while (cameraPermissionReceived == 0) {
@@ -80,12 +80,12 @@ PlatformContext::PlatformContext() :
 
 PlatformContext::~PlatformContext()
 {
-    LOG(LOG_DEBUG, "Platform context destroyed\n");
+    LOG_DEBUG( "Platform context destroyed");
 }
 
 bool PlatformContext::enumerateDevices()
 {
-    LOG(LOG_DEBUG, "enumerateDevices called\n");
+    LOG_DEBUG( "enumerateDevices called");
 
     m_devices.clear();
     
@@ -110,9 +110,9 @@ bool PlatformContext::enumerateDevices()
         deviceInfo->m_uniqueID = deviceInfo->m_name  + " " + std::string(device.uniqueID.UTF8String);
 
         std::string model = device.modelID.UTF8String;
-        LOG(LOG_DEBUG, "Name : %s\n", deviceInfo->m_name.c_str());
-        LOG(LOG_DEBUG, "Model: %s\n", model.c_str());
-        LOG(LOG_DEBUG, "U ID : %s\n", deviceInfo->m_uniqueID.c_str());
+        LOG_DEBUG( "Name : {}", deviceInfo->m_name.c_str());
+        LOG_DEBUG( "Model: {}", model.c_str());
+        LOG_DEBUG( "U ID : {}", deviceInfo->m_uniqueID.c_str());
 
         // extract the PID/VID from the model name
         NSRange vidRange = [device.modelID rangeOfString:@"VendorID_"];
@@ -124,7 +124,7 @@ bool PlatformContext::enumerateDevices()
         }
         else
         {
-            LOG(LOG_WARNING, "OSX Unable to extract vendor ID\n");
+            LOG_WARN( "OSX Unable to extract vendor ID");
         }
         
 
@@ -137,11 +137,11 @@ bool PlatformContext::enumerateDevices()
         }
         else
         {
-            LOG(LOG_WARNING, "OSX Unable to extract product ID\n");
+            LOG_WARN( "OSX Unable to extract product ID");
         }
         
 
-        LOG(LOG_DEBUG, "USB      : vid=%04X  pid=%04X\n", deviceInfo->m_vid, deviceInfo->m_pid);
+        LOG_DEBUG( "USB      : vid=%04X  pid=%04X", deviceInfo->m_vid, deviceInfo->m_pid);
 
         // the unique ID seem to be comprised of a 10-character PCI/USB location address
         // followed by the VID and PID in hex, e.g. 0x26210000046d0825
@@ -165,20 +165,20 @@ bool PlatformContext::enumerateDevices()
                 NSScanner *scanner = [NSScanner scannerWithString:hexString];
                 [scanner scanHexInt:&(deviceInfo->m_busLocation)];
 
-                LOG(LOG_DEBUG, "Location : %08X\n", deviceInfo->m_busLocation);
+                LOG_DEBUG( "Location : {:08X}", deviceInfo->m_busLocation);
             }
             else
             {
-                LOG(LOG_DEBUG, "VID/PID mismatch!\n");
-                LOG(LOG_DEBUG, "Extracted VID %s\n", locStdStr.substr(10,4).c_str());
-                LOG(LOG_DEBUG, "Extracted PID %s\n", locStdStr.substr(14,4).c_str());
+                LOG_DEBUG( "VID/PID mismatch!");
+                LOG_DEBUG( "Extracted VID {}", locStdStr.substr(10,4).c_str());
+                LOG_DEBUG( "Extracted PID {}", locStdStr.substr(14,4).c_str());
             }
         }
         
         if (deviceInfo->m_busLocation == 0)
         {
-            LOG(LOG_WARNING, "OSX Unique ID is not exactly 18 characters - wrong format to extract location.\n");
-            LOG(LOG_WARNING, "We might have trouble identifying the UVC control interface.\n");
+            LOG_WARN( "OSX Unique ID is not exactly 18 characters - wrong format to extract location.");
+            LOG_WARN( "We might have trouble identifying the UVC control interface.");
         }
 
         for (AVCaptureDeviceFormat* format in device.formats) 
@@ -255,7 +255,7 @@ bool PlatformContext::isDeviceAvailable(CapDeviceID id)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if ([device isInUseByAnotherApplication])
     {
-        LOG(LOG_INFO, "Device %s is in use by another application\n",
+        LOG_INFO( "Device {} is in use by another application",
             info->m_name.c_str());
         return false;
     }

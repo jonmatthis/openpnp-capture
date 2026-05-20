@@ -126,7 +126,7 @@ UVCCtrl::UVCCtrl(IOUSBInterfaceInterface190 **controller, uint32_t processingUni
     : m_pud(processingUnitID),
     m_controller(controller)
 {
-    //LOG(LOG_VERBOSE,"[BRIGHTNESS] ");
+    //LOG_TRACE("[BRIGHTNESS] ");
     //reportCapabilities(PU_BRIGHTNESS_CONTROL, UVC_PROCESSING_UNIT_ID);        
 }
 
@@ -141,14 +141,14 @@ UVCCtrl::~UVCCtrl()
 
 IOUSBDeviceInterface** UVCCtrl::findDevice(uint16_t vid, uint16_t pid, uint32_t location)
 {
-    LOG(LOG_DEBUG, "UVCCtrl::findDevice() called\n");
+    LOG_DEBUG( "UVCCtrl::findDevice() called");
 
     CFMutableDictionaryRef dict = IOServiceMatching(kIOUSBDeviceClassName);
 
     io_iterator_t serviceIterator;
     kern_return_t result = IOServiceGetMatchingServices(NULL, dict, &serviceIterator);
     if (result != kIOReturnSuccess) {
-        LOG(LOG_DEBUG, "UVCCtrl::findDevice() IOServiceGetMatchingServices failed: %d\n", result);
+        LOG_DEBUG( "UVCCtrl::findDevice() IOServiceGetMatchingServices failed: {}", result);
         return NULL;
     }
 
@@ -165,7 +165,7 @@ IOUSBDeviceInterface** UVCCtrl::findDevice(uint16_t vid, uint16_t pid, uint32_t 
 
         if ((result != kIOReturnSuccess) || (plugInInterface == nullptr))
         {
-            LOG(LOG_DEBUG, "UVCCtrl::findDevice() Camera control error %d\n", result);
+            LOG_DEBUG( "UVCCtrl::findDevice() Camera control error {}", result);
             IOObjectRelease(device);
             continue;
         }
@@ -179,7 +179,7 @@ IOUSBDeviceInterface** UVCCtrl::findDevice(uint16_t vid, uint16_t pid, uint32_t 
             {
                 (*plugInInterface)->Release(plugInInterface);
                 IOObjectRelease(device);
-                LOG(LOG_DEBUG, "UVCCtrl::findDevice() QueryInterface failed\n");
+                LOG_DEBUG( "UVCCtrl::findDevice() QueryInterface failed");
                 continue;
             }
 
@@ -229,11 +229,11 @@ uint32_t UVCCtrl::getProcessingUnitID(IOUSBDeviceInterface** dev)
     }
     else
     {
-        LOG(LOG_VERBOSE,"USB descriptor:\n");
-        LOG(LOG_VERBOSE,"  length    = %08X\n", configDesc->bLength);
-        LOG(LOG_VERBOSE,"  type      = %08X\n", configDesc->bDescriptorType);
-        LOG(LOG_VERBOSE,"  totalLen  = %08X\n", configDesc->wTotalLength);
-        LOG(LOG_VERBOSE,"  interfaces = %08X\n", configDesc->bNumInterfaces);
+        LOG_TRACE("USB descriptor:");
+        LOG_TRACE("  length    = {:08X}", configDesc->bLength);
+        LOG_TRACE("  type      = {:08X}", configDesc->bDescriptorType);
+        LOG_TRACE("  totalLen  = {:08X}", configDesc->wTotalLength);
+        LOG_TRACE("  interfaces = {:08X}", configDesc->bNumInterfaces);
 
         //FILE *fout = fopen("usbdump.txt","wb");
         //fwrite(configDesc, 1, configDesc->wTotalLength, fout);
@@ -256,25 +256,25 @@ uint32_t UVCCtrl::getProcessingUnitID(IOUSBDeviceInterface** dev)
             switch(hdr->bDescriptorType)
             {
                 case 0x05:  // Endpoint descriptor ID
-                    LOG(LOG_VERBOSE,"Endpoint\n");
+                    LOG_TRACE("Endpoint");
                     break;
                 case 0x02:  // Configuration descriptor ID
-                    LOG(LOG_VERBOSE,"Configuration\n");
+                    LOG_TRACE("Configuration");
                     break;
                 case 0x04: // Interface descriptor ID
-                    LOG(LOG_VERBOSE,"Interface");
+                    LOG_TRACE("Interface");
                     iface = (IOUSBInterfaceDescriptor*)&ptr[idx];
                     if ((iface->bInterfaceClass == 14) && 
                         (iface->bInterfaceSubClass == 1) &&
                         (iface->bInterfaceProtocol == 0))
                     {
                         inVideoControlInterfaceDescriptor = true;
-                        LOG(LOG_VERBOSE," VIDEO/CONTROL\n");
+                        LOG_TRACE(" VIDEO/CONTROL");
                     }
                     else
                     {
                         inVideoControlInterfaceDescriptor = false;
-                        LOG(LOG_VERBOSE,"\n");
+                        LOG_TRACE("");
                     }
                     break;
                 case 0x24: // class-specific ID
@@ -283,15 +283,15 @@ uint32_t UVCCtrl::getProcessingUnitID(IOUSBDeviceInterface** dev)
                     {
                         if (pud->bDescriptorSubtype == 0x05)
                         {
-                            LOG(LOG_VERBOSE,"Processing Unit ID: %d\n", 
+                            LOG_TRACE("Processing Unit ID: {}", 
                                 pud->bUnitID);
                             return pud->bUnitID;
                         }
                     }
-                    //LOG(LOG_VERBOSE,"\n");
+                    //LOG_TRACE("");
                     break;
                 default:
-                    //LOG(LOG_VERBOSE,"?\n");
+                    //LOG_TRACE("?");
                     break;
             }
             idx += hdr->bLength; // skip to next..
@@ -335,7 +335,7 @@ IOUSBInterfaceInterface190** UVCCtrl::createControlInterface(IOUSBDeviceInterfac
         kr = IOObjectRelease(usbInterface);
         if ((kr != kIOReturnSuccess) || !plugInInterface)
         {
-            LOG(LOG_ERR, "UVCCtrl::createControlInterface cannot create plug-in %08X\n",
+            LOG_ERROR( "UVCCtrl::createControlInterface cannot create plug-in {:08X}",
                 kr);
             return NULL;
         }
@@ -348,11 +348,11 @@ IOUSBInterfaceInterface190** UVCCtrl::createControlInterface(IOUSBDeviceInterfac
 
         if (hr || !controlInterface)
         {
-            LOG(LOG_ERR,"UVCCtrl::createControlInterface: cannot create device interface %08X\n",
+            LOG_ERROR("UVCCtrl::createControlInterface: cannot create device interface {:08X}",
                 result);
                 return NULL;
         }
-        LOG(LOG_DEBUG, "UVCCtrl::createControlInterface: created control interface\n");
+        LOG_DEBUG( "UVCCtrl::createControlInterface: created control interface");
 
         return controlInterface;
     }
@@ -363,7 +363,7 @@ bool UVCCtrl::sendControlRequest(IOUSBDevRequest req)
 {
     if (m_controller == nullptr)
     {
-        LOG(LOG_ERR,"UVCCtrl::sendControlRequest: control interface is NULL\n");
+        LOG_ERROR("UVCCtrl::sendControlRequest: control interface is NULL");
         return false;
     }
 
@@ -377,7 +377,7 @@ bool UVCCtrl::sendControlRequest(IOUSBDevRequest req)
         kr = (*m_controller)->USBInterfaceOpen(m_controller);
         if (kr != kIOReturnSuccess)
         {
-            LOG(LOG_ERR, "sendControlRequest USBInterfaceOpen failed!\n");
+            LOG_ERROR( "sendControlRequest USBInterfaceOpen failed!");
             return false;
         }
     }
@@ -397,27 +397,27 @@ bool UVCCtrl::sendControlRequest(IOUSBDevRequest req)
         switch(kr)
         {
             case kIOUSBUnknownPipeErr:
-                LOG(LOG_ERR,"sendControlRequest: Pipe ref not recognised\n");
+                LOG_ERROR("sendControlRequest: Pipe ref not recognised");
                 break;
             case kIOUSBTooManyPipesErr:
-                LOG(LOG_ERR,"sendControlRequest: Too many pipes\n");
+                LOG_ERROR("sendControlRequest: Too many pipes");
                 break;
             case kIOUSBEndpointNotFound:
-                LOG(LOG_ERR,"sendControlRequest: Endpoint not found\n");
+                LOG_ERROR("sendControlRequest: Endpoint not found");
                 break;
             case kIOUSBConfigNotFound:
-                LOG(LOG_ERR,"sendControlRequest: USB configuration not found\n");
+                LOG_ERROR("sendControlRequest: USB configuration not found");
                 break;
             case kIOUSBPipeStalled:
                 //Note: we don't report this as an error as this happens when
                 //      an unsupported or locked property is set.            
-                LOG(LOG_VERBOSE,"sendControlRequest: Pipe has stalled, error needs to be cleared\n");
+                LOG_TRACE("sendControlRequest: Pipe has stalled, error needs to be cleared");
                 break;
             case kIOUSBInterfaceNotFound:
-                LOG(LOG_ERR,"sendControlRequest: USB control interface not found\n");
+                LOG_ERROR("sendControlRequest: USB control interface not found");
                 break;
             default:
-                LOG(LOG_ERR, "sendControlRequest ControlRequest failed (KR=sys:sub:code) = %02Xh:%03Xh:%04Xh)!\n", 
+                LOG_ERROR( "sendControlRequest ControlRequest failed (KR=sys:sub:code) = %02Xh:%03Xh:%04Xh)!", 
                     err_get_system(kr), err_get_sub(kr), err_get_code(kr));
                 break; 
         }
@@ -430,7 +430,7 @@ bool UVCCtrl::sendControlRequest(IOUSBDevRequest req)
         {
             kr = (*m_controller)->USBInterfaceClose(m_controller);
             if (kr != kIOReturnSuccess) {
-                LOG(LOG_ERR, "sendControlRequest USBInterfaceClose failed!\n");
+                LOG_ERROR( "sendControlRequest USBInterfaceClose failed!");
             }
         }
 
@@ -446,7 +446,7 @@ bool UVCCtrl::sendControlRequest(IOUSBDevRequest req)
         kr = (*m_controller)->USBInterfaceClose(m_controller);
         if (kr != kIOReturnSuccess)
         {
-            LOG(LOG_ERR, "sendControlRequest USBInterfaceClose failed!\n");
+            LOG_ERROR( "sendControlRequest USBInterfaceClose failed!");
         }
     }
 
@@ -555,18 +555,18 @@ bool UVCCtrl::setProperty(uint32_t propID, int32_t value)
     switch(propID)
     {
     case CAPPROPID_EXPOSURE:
-        LOG(LOG_VERBOSE, "UVCCtrl::setProperty (exposure) %08X\n", value);
+        LOG_TRACE( "UVCCtrl::setProperty (exposure) {:08X}", value);
         return setData(CT_EXPOSURE_TIME_ABSOLUTE_CONTROL, UVC_INPUT_TERMINAL_ID, 4, value);
     case CAPPROPID_FOCUS:
         return false; // FIXME: not supported yet
     case CAPPROPID_ZOOM:
-        LOG(LOG_VERBOSE, "UVCCtrl::setProperty (zoom) %08X\n", value);
+        LOG_TRACE( "UVCCtrl::setProperty (zoom) {:08X}", value);
         return setData(CT_ZOOM_ABSOLUTE_CONTROL, UVC_INPUT_TERMINAL_ID, 4, value);
     case CAPPROPID_WHITEBALANCE:
-        LOG(LOG_VERBOSE, "UVCCtrl::setProperty (white balance) %08X\n", value);
+        LOG_TRACE( "UVCCtrl::setProperty (white balance) {:08X}", value);
         return setData(PU_WHITE_BALANCE_TEMPERATURE_CONTROL, UVC_PROCESSING_UNIT_ID, 2, value);
     case CAPPROPID_GAIN:
-        LOG(LOG_VERBOSE, "UVCCtrl::setProperty (gain) %08X\n", value);
+        LOG_TRACE( "UVCCtrl::setProperty (gain) {:08X}", value);
         return setData(PU_GAIN_CONTROL, UVC_PROCESSING_UNIT_ID, 2, value);
     default:
         return false;
@@ -611,19 +611,19 @@ bool UVCCtrl::getProperty(uint32_t propID, int32_t *value)
     switch(propID)
     {
     case CAPPROPID_EXPOSURE:
-        LOG(LOG_VERBOSE, "UVCCtrl::getProperty (exposure)\n");
+        LOG_TRACE( "UVCCtrl::getProperty (exposure)");
         return getData(CT_EXPOSURE_TIME_ABSOLUTE_CONTROL, UVC_INPUT_TERMINAL_ID, 4, value);
     case CAPPROPID_FOCUS:
-        LOG(LOG_VERBOSE, "UVCCtrl::getProperty (focus)\n");
+        LOG_TRACE( "UVCCtrl::getProperty (focus)");
         return false; // FIXME: not supported yet
     case CAPPROPID_ZOOM:
-        LOG(LOG_VERBOSE, "UVCCtrl::getProperty (zoom)\n");
+        LOG_TRACE( "UVCCtrl::getProperty (zoom)");
         return getData(CT_ZOOM_ABSOLUTE_CONTROL, UVC_INPUT_TERMINAL_ID, 4, value);
     case CAPPROPID_WHITEBALANCE:
-        LOG(LOG_VERBOSE, "UVCCtrl::getProperty (white balance)\n");  
+        LOG_TRACE( "UVCCtrl::getProperty (white balance)");  
         return getData(PU_WHITE_BALANCE_TEMPERATURE_CONTROL, UVC_PROCESSING_UNIT_ID, 2, value);       
     case CAPPROPID_GAIN:
-        LOG(LOG_VERBOSE, "UVCCtrl::getProperty (gain)\n");
+        LOG_TRACE( "UVCCtrl::getProperty (gain)");
         return getData(PU_GAIN_CONTROL, UVC_PROCESSING_UNIT_ID, 2, value);    
     default:
         return false;
@@ -644,13 +644,13 @@ bool UVCCtrl::setAutoProperty(uint32_t propID, bool enabled)
     switch(propID)
     {
     case CAPPROPID_EXPOSURE:
-        LOG(LOG_VERBOSE, "UVCCtrl::setAutoProperty (exposure %s)\n", enabled ? "ON" : "OFF");
+        LOG_TRACE( "UVCCtrl::setAutoProperty (exposure {})", enabled ? "ON" : "OFF");
         return setData(CT_AE_MODE_CONTROL, UVC_INPUT_TERMINAL_ID, 1, enabled ? 0x8 : 0x1);
     case CAPPROPID_WHITEBALANCE:
-        LOG(LOG_VERBOSE, "UVCCtrl::setAutoProperty (white balance %s)\n", enabled ? "ON" : "OFF");
+        LOG_TRACE( "UVCCtrl::setAutoProperty (white balance {})", enabled ? "ON" : "OFF");
         return setData(PU_WHITE_BALANCE_TEMPERATURE_AUTO_CONTROL, m_pud, 1, value);
     case CAPPROPID_FOCUS:
-        LOG(LOG_VERBOSE, "UVCCtrl::setAutoProperty (focus %s)\n", enabled ? "ON" : "OFF");
+        LOG_TRACE( "UVCCtrl::setAutoProperty (focus {})", enabled ? "ON" : "OFF");
         return setData(CT_FOCUS_AUTO_CONTROL, UVC_INPUT_TERMINAL_ID, 1, value);
     default:
         return false;
@@ -670,10 +670,10 @@ bool UVCCtrl::getAutoProperty(uint32_t propID, bool *enabled)
     switch(propID)
     {
     case CAPPROPID_EXPOSURE:
-        LOG(LOG_VERBOSE, "UVCCtrl::getAutoProperty exposure\n");
+        LOG_TRACE( "UVCCtrl::getAutoProperty exposure");
         if (getData(CT_AE_MODE_CONTROL, UVC_INPUT_TERMINAL_ID, 1, &value))
         {
-            LOG(LOG_VERBOSE,"CT_AE_MODE_CONTROL returned %08Xh\n", value & 0xFF);
+            LOG_TRACE("CT_AE_MODE_CONTROL returned {:08X}h", value & 0xFF);
             //
             // value = 1 -> manual mode
             //         2 -> auto mode (I haven't seen this in the wild)
@@ -686,20 +686,20 @@ bool UVCCtrl::getAutoProperty(uint32_t propID, bool *enabled)
         }
         return false;
     case CAPPROPID_WHITEBALANCE:
-        LOG(LOG_VERBOSE, "UVCCtrl::getAutoProperty white balance\n");
+        LOG_TRACE( "UVCCtrl::getAutoProperty white balance");
         if (getData(PU_WHITE_BALANCE_TEMPERATURE_AUTO_CONTROL, m_pud, 1, &value))
         {
-            LOG(LOG_VERBOSE,"PU_WHITE_BALANCE_TEMPERATURE_AUTO_CONTROL returned %08Xh\n", value & 0xFF);
+            LOG_TRACE("PU_WHITE_BALANCE_TEMPERATURE_AUTO_CONTROL returned {:08X}h", value & 0xFF);
             value &= 0xFF; // make 8-bit            
             *enabled = (value==1) ? true : false; 
             return true;
         }
         return false;
     case CAPPROPID_FOCUS:
-        LOG(LOG_VERBOSE, "UVCCtrl::getAutoProperty focus\n");
+        LOG_TRACE( "UVCCtrl::getAutoProperty focus");
         if (getData(CT_FOCUS_AUTO_CONTROL, UVC_INPUT_TERMINAL_ID, 1, &value))
         {
-            LOG(LOG_VERBOSE,"CT_FOCUS_AUTO_CONTROL returned %08Xh\n", value & 0xFF);
+            LOG_TRACE("CT_FOCUS_AUTO_CONTROL returned {:08X}h", value & 0xFF);
             value &= 0xFF; // make 8-bit
             *enabled = (value==1) ? true : false;
             return true;
@@ -726,7 +726,7 @@ bool UVCCtrl::getPropertyLimits(uint32_t propID, int32_t *emin, int32_t *emax, i
         if (!getMinData(propertyInfo[propID].selector, unit, 
             propertyInfo[propID].length, emin))
         {
-            LOG(LOG_VERBOSE, "getMinData failed\n");
+            LOG_TRACE( "getMinData failed");
             ok = false;
         }
 
@@ -734,7 +734,7 @@ bool UVCCtrl::getPropertyLimits(uint32_t propID, int32_t *emin, int32_t *emax, i
         if (!getMaxData(propertyInfo[propID].selector, unit, 
             propertyInfo[propID].length, emax))
         {
-            LOG(LOG_VERBOSE, "getMaxData failed\n");
+            LOG_TRACE( "getMaxData failed");
             ok = false;
         }
 
@@ -742,7 +742,7 @@ bool UVCCtrl::getPropertyLimits(uint32_t propID, int32_t *emin, int32_t *emax, i
         if (!getDefault(propertyInfo[propID].selector, unit,
             propertyInfo[propID].length, dValue))
         {
-            LOG(LOG_VERBOSE, "getDefault failed\n");
+            LOG_TRACE( "getDefault failed");
             ok = false;
         }
 
@@ -764,7 +764,7 @@ bool UVCCtrl::getPropertyLimits(uint32_t propID, int32_t *emin, int32_t *emax, i
     }
     else
     {
-        LOG(LOG_ERR, "UVCCtrl::getPropertyLimits property ID out of bounds.\n");
+        LOG_ERROR( "UVCCtrl::getPropertyLimits property ID out of bounds.");
         ok = false;
     }
     return ok;
@@ -773,31 +773,31 @@ bool UVCCtrl::getPropertyLimits(uint32_t propID, int32_t *emin, int32_t *emax, i
 void UVCCtrl::reportCapabilities(uint32_t selector, uint32_t unit)
 {
     uint32_t info;
-    LOG(LOG_VERBOSE,"CAPS: ");
+    LOG_TRACE("CAPS: ");
     getInfo(selector, unit, &info);
     if (info & 0x01)
     {
-        LOG(LOG_VERBOSE,"GET ");
+        LOG_TRACE("GET ");
     }
     if (info & 0x02)
     {
-        LOG(LOG_VERBOSE,"SET ");
+        LOG_TRACE("SET ");
     }
     if (info & 0x04)
     {
-        LOG(LOG_VERBOSE,"DISABLED ");
+        LOG_TRACE("DISABLED ");
     }
     if (info & 0x08)
     {
-        LOG(LOG_VERBOSE,"AUTO-UPD ");
+        LOG_TRACE("AUTO-UPD ");
     }
     if (info & 0x10)
     {
-        LOG(LOG_VERBOSE,"ASYNC ");
+        LOG_TRACE("ASYNC ");
     }
     if (info & 0x20)
     {
-        LOG(LOG_VERBOSE,"DISCOMMIT");
+        LOG_TRACE("DISCOMMIT");
     }
-    LOG(LOG_VERBOSE,"\n");
+    LOG_TRACE("");
 }
