@@ -467,29 +467,9 @@ fn main() {
 
 ## Bumping the build number
 
-When the C source in this repository changes, push a new tag.
+When the C source changes, run `bump.bat` to tag and push a new release. It finds the highest `build.N`, creates `build.N+1`, and pushes it.
 
-### Option 1 — git alias (recommended)
-
-Add a `bump` alias to your local git config:
-
-```bash
-git config alias.bump '!git tag build.$(git tag -l "build.*" | sed "s/build\.//" | sort -n | tail -1 | awk "{print \$0+1}") && git push origin build.$(git tag -l "build.*" | sed "s/build\.//" | sort -n | tail -1 | awk "{print \$0+1}")'
-```
-
-Then just run `git bump` — it finds the highest `build.N`, creates `build.N+1`, and pushes it. No thought required.
-
-### Option 2 — manual
-
-Check the last build tag, then push the next one:
-
-```
-git tag -l "build.*" | sort -V | tail -1   # → build.0
-git tag build.1 && git push origin build.1
-```
-
-After either method, update the `OPENPNP_BUILD` constant in your downstream
-`build.rs` to match the new tag.
+After bumping, update the `OPENPNP_BUILD` constant in your downstream `build.rs`.
 
 # Platform Notes
 
