@@ -523,14 +523,10 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
             uint32_t fps_from_mt = vi->AvgTimePerFrame > 0
                 ? 10000000 / vi->AvgTimePerFrame
                 : 0;
-            LOG(LOG_ERR,
-                "  [negotiated media type]\n"
-                "    resolution      : %d x %d\n"
-                "    pixel format    : %s (0x%08X)\n"
-                "    target framerate: %d fps (AvgTimePerFrame=%d)\n"
-                "    bitrate         : %d\n",
+            LOG(LOG_INFO,
+                "Stream config: negotiated format %dx%d %s @ %d fps (AvgTimePerFrame=%d, bitrate=%d)\n",
                 m_width, m_height,
-                fourCCToString(fc).c_str(), fc,
+                fourCCToString(fc).c_str(),
                 fps_from_mt, vi->AvgTimePerFrame,
                 vi->dwBitRate);
 
@@ -541,7 +537,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     else
     {
         LOG(LOG_ERR,
-            "  [negotiated media type]  FAILED to read (hr=0x%08X)\n", hr);
+            "Stream config: FAILED to read negotiated media type (hr=0x%08X)\n", hr);
     }
     free(info);
 
@@ -555,8 +551,8 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
             uint32_t fpsPre = viPre->AvgTimePerFrame > 0
                 ? 10000000 / viPre->AvgTimePerFrame
                 : 0;
-            LOG(LOG_ERR,
-                "  [pre-Run check]     %dx%d  %dfps  (re-read confirms negotiation)\n",
+            LOG(LOG_DEBUG,
+                "Stream config: pre-Run verification  %dx%d @ %dfps (format confirmed before graph start)\n",
                 viPre->bmiHeader.biWidth, viPre->bmiHeader.biHeight, fpsPre);
             CoTaskMemFree(infoPre->pbFormat);
         }
@@ -574,11 +570,11 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     // the "MJPG doesn't stick" bug).  Our fix below re-applies the
     // format AFTER this transition, matching what the C++ PoC does.
     // =================================================================
-    LOG(LOG_ERR,
-        "  [graph start] calling m_control->Run() — camera begins streaming\n");
+    LOG(LOG_INFO,
+        "Stream config: starting filter graph (camera begins streaming)\n");
     m_control->Run();
-    LOG(LOG_ERR,
-        "  [graph start] m_control->Run() completed\n");
+    LOG(LOG_DEBUG,
+        "Stream config: filter graph is now running\n");
 
     // =================================================================
     // STEP 6: MJPG FIX — re-apply format while graph is RUNNING.
@@ -595,23 +591,23 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
     // Part A: re-set FOURCC on the CAPTURE pin via IAMStreamConfig.
     // Part B: force-reconnect the pin via IFilterGraph2::Reconnect().
     // =================================================================
-    LOG(LOG_ERR,
-        "  [MJPG fix] re-applying format while graph is running\n");
+    LOG(LOG_DEBUG,
+        "Stream config: re-negotiating MJPEG format (post-graph-start workaround for DirectShow MJPEG quirk)\n");
     {
         // --- Part A: find matching format and call SetFormat ---
         IAMStreamConfig *pConfig2 = NULL;
         hr = m_capture->FindInterface(&videoPin, 0,
             m_sourceFilter, IID_IAMStreamConfig, (void**)&pConfig2);
-        LOG(LOG_ERR,
-            "  [MJPG fix A] looking for %s pin with IAMStreamConfig... found (ptr=%p)\n",
+        LOG(LOG_DEBUG,
+            "Stream config: found %s pin for format re-negotiation (IAMStreamConfig ptr=%p)\n",
                 (&videoPin == &PIN_CATEGORY_PREVIEW) ? "PREVIEW" : "CAPTURE",
             (void*)pConfig2);
         if (SUCCEEDED(hr))
         {
             int iCount2 = 0, iSize2 = 0;
             pConfig2->GetNumberOfCapabilities(&iCount2, &iSize2);
-            LOG(LOG_ERR,
-                "  [MJPG fix A] camera reports %d format capabilities\n", iCount2);
+            LOG(LOG_DEBUG,
+                "Stream config: camera reports %d format capabilities for re-negotiation\n", iCount2);
             for (int iFmt = 0; iFmt < iCount2; iFmt++)
             {
                 VIDEO_STREAM_CONFIG_CAPS scc;
@@ -630,10 +626,10 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                             pVih->bmiHeader.biHeight == height && fc == fourCC)
                         {
                             hr = pConfig2->SetFormat(pMt);
-                            LOG(LOG_ERR,
-                                "  [MJPG fix A] SetFormat(%dx%d %s) -> hr=0x%08X %s\n",
+                            LOG(LOG_DEBUG,
+                                "Stream config: SetFormat(%dx%d %s) -> %s (hr=0x%08X)\n",
                                 width, height, fourCCToString(fourCC).c_str(),
-                                hr, SUCCEEDED(hr) ? "(OK)" : "(VFW_E_INVALIDMEDIATYPE — pin needs reconnect)");
+                                SUCCEEDED(hr) ? "OK" : "VFW_E_INVALIDMEDIATYPE (pin needs reconnect)", hr);
                             _DeleteMediaType(pMt);
                             break;
                         }
@@ -658,13 +654,13 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                     SUCCEEDED(pin->ConnectedTo(&connectedTo)) &&
                     connectedTo != NULL)
                 {
-                    LOG(LOG_ERR,
-                        "  [MJPG fix B] found connected output pin, forcing reconnect...\n");
+                    LOG(LOG_DEBUG,
+                        "Stream config: reconnecting output pin to re-negotiate format\n");
                     hr = m_graph->Reconnect(pin);
-                    LOG(LOG_ERR,
-                        "  [MJPG fix B] Reconnect() -> hr=0x%08X %s\n",
-                        hr, SUCCEEDED(hr) ? "(OK — media type renegotiated)"
-                                          : "(VFW_E_INVALIDMEDIATYPE — no compatible format found)");
+                    LOG(LOG_DEBUG,
+                        "Stream config: Reconnect -> %s (hr=0x%08X)\n",
+                        SUCCEEDED(hr) ? "OK, format re-negotiated"
+                                      : "VFW_E_INVALIDMEDIATYPE (no compatible format found)", hr);
                     connectedTo->Release();
                     pin->Release();
                     break;
@@ -677,7 +673,7 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
         else
         {
             LOG(LOG_ERR,
-                "  [MJPG fix B] EnumPins failed — cannot reconnect\n");
+                "Stream config: EnumPins failed, cannot reconnect output pin for format re-negotiation\n");
         }
     }
 
@@ -693,8 +689,8 @@ bool PlatformStream::open(Context *owner, deviceInfo *device, uint32_t width, ui
                 : 0;
             m_width = viPost->bmiHeader.biWidth;
             m_height = viPost->bmiHeader.biHeight;
-            LOG(LOG_ERR,
-                "  [final state] %dx%d @ %dfps  — ready for capture\n",
+            LOG(LOG_INFO,
+                "Stream config: final format  %dx%d @ %dfps  — ready for capture\n",
                 m_width, m_height, fpsPost);
             CoTaskMemFree(infoPost->pbFormat);
         }
