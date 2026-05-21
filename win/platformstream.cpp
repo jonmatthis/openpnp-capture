@@ -1033,7 +1033,7 @@ void PlatformStream::dumpCameraProperties()
         }
         else
         {
-            LOG_WARN("Could not get focus range information");
+            LOG_DEBUG("Could not get focus range information");
         }        
 
         // query zoom
@@ -1048,7 +1048,7 @@ void PlatformStream::dumpCameraProperties()
         }
         else
         {
-            LOG_WARN("Could not get Zoom range information");
+            LOG_DEBUG("Could not get Zoom range information");
         }         
 
 #if 0

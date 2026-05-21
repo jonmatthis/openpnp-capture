@@ -154,7 +154,7 @@ bool PlatformContext::enumerateDevices()
                 info->m_devicePath = std::wstring(name.bstrVal);
             }
             else {
-                LOG_WARN("     device path not found! fallback to using device index...");
+                LOG_TRACE("     device path not found! fallback to using device index...");
                 info->m_devicePath = std::to_wstring(num_devices);
             }
 
@@ -306,7 +306,7 @@ bool PlatformContext::enumerateFrameInfo(IMoniker *moniker, platformDeviceInfo *
     HRESULT hr = moniker->BindToObject(0, 0, IID_IBaseFilter, (void**)&pCap);
     if (!SUCCEEDED(hr))
     {
-        LOG_ERROR("No frame information: BindToObject failed.");
+        LOG_DEBUG("No frame information: BindToObject failed.");
         return false;
     }
 
